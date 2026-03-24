@@ -78,13 +78,18 @@ export default function CompaniesPage() {
       setAutoResult(data)
       const env = data.environment as 'test' | 'live'
 
-      // Auto-fill company from Stripe account
+      // Auto-fill ALL company data from Stripe account
       setEditing(prev => prev ? {
         ...prev,
         name: prev.name || data.account.businessName || '',
         email: prev.email || data.account.email || '',
         phone: prev.phone || data.account.phone || '',
         website: prev.website || data.account.website || '',
+        address: prev.address || data.account.address || '',
+        cui: prev.cui || data.account.cui || '',
+        registrationNumber: prev.registrationNumber || data.account.registrationNumber || '',
+        bank: prev.bank || data.account.bank || '',
+        iban: prev.iban || data.account.iban || '',
         country: data.account.country || prev.country,
         currency: data.account.currency || prev.currency,
         stripeEnvironment: env,
@@ -195,7 +200,7 @@ export default function CompaniesPage() {
             <li>Click <strong>"Adaugă firmă"</strong></li>
             <li>Lipește <strong>Secret Key</strong> din <a href="https://dashboard.stripe.com/test/apikeys" target="_blank" rel="noopener">Stripe Dashboard → Developers → API Keys</a></li>
             <li>Datele firmei se completează <strong>automat</strong> din contul Stripe</li>
-            <li>Adaugă manual doar <strong>CUI, IBAN, bancă</strong> (nu sunt în Stripe)</li>
+            <li><strong>CUI, IBAN, bancă, adresă</strong> — se extrag automat din Stripe (dacă sunt completate acolo)</li>
             <li>Salvează — gata!</li>
           </ol>
         </div>
@@ -287,13 +292,17 @@ export default function CompaniesPage() {
                           {autoResult.account.businessName && <div>Firmă: <strong>{autoResult.account.businessName}</strong></div>}
                           <div>ID: {autoResult.account.id} · {autoResult.account.country} · {autoResult.account.currency?.toUpperCase()}</div>
                           {autoResult.account.email && <div>Email: {autoResult.account.email}</div>}
+                          {autoResult.account.cui && <div>CUI: {autoResult.account.cui}</div>}
+                          {autoResult.account.registrationNumber && <div>Nr. înreg.: {autoResult.account.registrationNumber}</div>}
+                          {autoResult.account.address && <div>Adresă: {autoResult.account.address}</div>}
+                          {autoResult.account.bank && <div>Bancă: {autoResult.account.bank} {autoResult.account.iban && `(••••${autoResult.account.bankLast4})`}</div>}
                           <div>
                             Plăți: {autoResult.account.chargesEnabled ? '✓' : '✗'} ·
                             Payouts: {autoResult.account.payoutsEnabled ? '✓' : '✗'}
                           </div>
                         </div>
                         <p className="text-sm mt-2" style={{ opacity: 0.8 }}>
-                          ↑ Datele de mai sus au fost completate automat. Adaugă manual CUI, IBAN și bancă.
+                          ↑ Toate datele au fost completate automat din contul Stripe. Verifică și salvează.
                         </p>
                       </div>
                     ) : (
