@@ -1,0 +1,4 @@
+{
+  "mappings": [],
+  "_comment": "Each mapping: { projectSlug, companySlug, stripeEnvironment, testKeys: {...}, liveKeys: {...} }"
+}

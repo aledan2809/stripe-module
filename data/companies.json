@@ -1,0 +1,38 @@
+[
+  {
+    "slug": "blochub",
+    "name": "BlocHub SRL",
+    "cui": "",
+    "registrationNumber": "",
+    "address": "",
+    "email": "",
+    "phone": "",
+    "bank": "",
+    "iban": "",
+    "isVatPayer": true,
+    "vatRate": 0.19,
+    "currency": "ron",
+    "country": "RO",
+    "stripeEnvironment": "test",
+    "website": "",
+    "logoUrl": ""
+  },
+  {
+    "slug": "ave",
+    "name": "AVE",
+    "cui": "",
+    "registrationNumber": "",
+    "address": "",
+    "email": "",
+    "phone": "",
+    "bank": "",
+    "iban": "",
+    "isVatPayer": true,
+    "vatRate": 0.19,
+    "currency": "ron",
+    "country": "RO",
+    "stripeEnvironment": "test",
+    "website": "",
+    "logoUrl": ""
+  }
+]
