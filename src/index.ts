@@ -3,6 +3,12 @@ export { getStripe, getStripeSync, stripe, setKeyProvider } from './client'
 export { configureStripeModule, getConfig, DEFAULT_CONFIG } from './config'
 export { toStripeAmount, fromStripeAmount } from './utils'
 
+// --- Company Registry ---
+export { useCompany, getActiveCompany, getActiveCompanyProfile, getActivePublishableKey, getStripeForCompany, invalidateCompanyInstance } from './companies/use-company'
+export { registerCompany, getCompanyProfile, listCompanies, listCompanyProfiles, hasCompany } from './companies/registry'
+export { setCompanyCredentials, resolveCredentials, getPublishableKey, getWebhookSecret, invalidateCredentialCache } from './companies/credentials'
+export type { CompanyProfile, CompanyCredentials, CompanyConfig } from './companies/types'
+
 // --- Types ---
 export type {
   StripeModuleConfig,
