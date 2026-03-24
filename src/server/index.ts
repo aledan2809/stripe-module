@@ -36,3 +36,7 @@ export type { ReportUsageInput, UsageSummary } from './usage'
 // Plan Sync (dynamic plans → Stripe)
 export { syncPlans, getPlanMapping } from './sync'
 export type { PlanDefinition, PriceDefinition, SyncResult, PlanMapping } from './sync'
+
+// Stripe Connect (marketplace)
+export { createConnectedAccount, createAccountLink, createLoginLink, getConnectedAccount, listConnectedAccounts, deleteConnectedAccount, createMarketplacePayment, createMarketplaceCheckout, createTransfer, getConnectedAccountBalance } from './connect'
+export type { CreateConnectedAccountInput, CreateAccountLinkInput, ConnectedAccountInfo, CreateMarketplacePaymentInput, MarketplacePaymentResult, CreateMarketplaceCheckoutInput } from './connect'

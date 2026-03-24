@@ -59,6 +59,10 @@ export type { ReportUsageInput, UsageSummary } from './server/usage'
 export { syncPlans, getPlanMapping } from './server/sync'
 export type { PlanDefinition, PriceDefinition, SyncResult, PlanMapping } from './server/sync'
 
+// --- Server: Stripe Connect (Marketplace) ---
+export { createConnectedAccount, createAccountLink, createLoginLink, getConnectedAccount, listConnectedAccounts, deleteConnectedAccount, createMarketplacePayment, createMarketplaceCheckout, createTransfer, getConnectedAccountBalance } from './server/connect'
+export type { CreateConnectedAccountInput, CreateAccountLinkInput, ConnectedAccountInfo, CreateMarketplacePaymentInput, MarketplacePaymentResult, CreateMarketplaceCheckoutInput } from './server/connect'
+
 // --- Next.js Route Helpers ---
 export { createIntentRoute } from './nextjs/create-intent-route'
 export type { CreateIntentRouteOptions } from './nextjs/create-intent-route'
@@ -70,6 +74,8 @@ export { portalRoute } from './nextjs/portal-route'
 export type { PortalRouteOptions } from './nextjs/portal-route'
 export { syncRoute } from './nextjs/sync-route'
 export type { SyncRouteOptions } from './nextjs/sync-route'
+export { connectRoute } from './nextjs/connect-route'
+export type { ConnectRouteOptions } from './nextjs/connect-route'
 
 // --- React Components ---
 export { PaymentForm } from './components/PaymentForm'
