@@ -55,6 +55,10 @@ export type { CreateRefundInput, RefundInfo } from './server/refunds'
 export { reportUsage, getUsageSummary, getSubscriptionItemId, reportUsageForSubscription } from './server/usage'
 export type { ReportUsageInput, UsageSummary } from './server/usage'
 
+// --- Server: Plan Sync ---
+export { syncPlans, getPlanMapping } from './server/sync'
+export type { PlanDefinition, PriceDefinition, SyncResult, PlanMapping } from './server/sync'
+
 // --- Next.js Route Helpers ---
 export { createIntentRoute } from './nextjs/create-intent-route'
 export type { CreateIntentRouteOptions } from './nextjs/create-intent-route'
@@ -64,6 +68,8 @@ export { checkoutRoute } from './nextjs/checkout-route'
 export type { CheckoutRouteOptions } from './nextjs/checkout-route'
 export { portalRoute } from './nextjs/portal-route'
 export type { PortalRouteOptions } from './nextjs/portal-route'
+export { syncRoute } from './nextjs/sync-route'
+export type { SyncRouteOptions } from './nextjs/sync-route'
 
 // --- React Components ---
 export { PaymentForm } from './components/PaymentForm'

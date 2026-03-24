@@ -32,3 +32,7 @@ export type { CreateRefundInput, RefundInfo } from './refunds'
 // Usage-based Billing
 export { reportUsage, getUsageSummary, getSubscriptionItemId, reportUsageForSubscription } from './usage'
 export type { ReportUsageInput, UsageSummary } from './usage'
+
+// Plan Sync (dynamic plans → Stripe)
+export { syncPlans, getPlanMapping } from './sync'
+export type { PlanDefinition, PriceDefinition, SyncResult, PlanMapping } from './sync'
