@@ -21,7 +21,6 @@ export default function ProjectsPage() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [editing, setEditing] = useState<Mapping | null>(null)
   const [message, setMessage] = useState<{ type: string; text: string } | null>(null)
-  const [filter, setFilter] = useState('')
   const [saving, setSaving] = useState(false)
 
   const load = async () => {
@@ -91,9 +90,6 @@ export default function ProjectsPage() {
 
   const configuredProjects = mappings.filter(m => m.subscriptionCompany || m.serviceCompany)
   const configuredSlugs = configuredProjects.map(m => m.projectSlug)
-  const unconfiguredProjects = available.filter(
-    p => !configuredSlugs.includes(p.slug) && p.slug.toLowerCase().includes(filter.toLowerCase())
-  )
 
   return (
     <>
@@ -211,40 +207,37 @@ export default function ProjectsPage() {
           </div>
         )}
 
-        {/* Unconfigured projects */}
+        {/* Add project */}
         <div className="card">
           <div className="card-header">
             <div>
-              <div className="card-title">Proiecte disponibile</div>
-              <div className="card-subtitle">Click pe un proiect pentru a configura Stripe</div>
+              <div className="card-title">Adaugă proiect</div>
+              <div className="card-subtitle">Selectează un proiect din dropdown și configurează Stripe</div>
             </div>
           </div>
 
-          <input className="form-input w-full mb-4" placeholder="Caută proiect..."
-            value={filter} onChange={e => setFilter(e.target.value)} />
-
           {companies.length === 0 ? (
             <div className="alert alert-info">Adaugă mai întâi o firmă în pagina Firme.</div>
-          ) : unconfiguredProjects.length === 0 ? (
-            <p className="text-muted text-sm">
-              {filter ? 'Niciun proiect găsit' : 'Toate proiectele sunt configurate'}
-            </p>
           ) : (
-            <div className="flex flex-col gap-2">
-              {unconfiguredProjects.map(p => (
-                <div key={p.slug}
-                  onClick={() => openConfig(p)}
-                  style={{
-                    padding: '10px 16px', cursor: 'pointer', borderRadius: 8,
-                    border: '1px solid var(--border)', transition: 'border-color 0.15s',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--stripe-purple)')}
-                  onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
-                >
-                  <span style={{ fontWeight: 500 }}>{p.slug}</span>
-                  <span className="text-sm text-muted" style={{ marginLeft: 12 }}>{p.path}</span>
-                </div>
-              ))}
+            <div className="flex gap-3 items-center">
+              <select className="form-select" style={{ flex: 1 }}
+                value=""
+                onChange={e => {
+                  const slug = e.target.value
+                  if (!slug) return
+                  const proj = available.find(p => p.slug === slug)
+                  if (proj) openConfig(proj)
+                }}>
+                <option value="">— Selectează proiectul —</option>
+                {available.map(p => {
+                  const isConfigured = configuredSlugs.includes(p.slug)
+                  return (
+                    <option key={p.slug} value={p.slug} disabled={isConfigured}>
+                      {p.slug} {isConfigured ? '(configurat)' : ''} — {p.path}
+                    </option>
+                  )
+                })}
+              </select>
             </div>
           )}
         </div>

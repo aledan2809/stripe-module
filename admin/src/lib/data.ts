@@ -179,16 +179,24 @@ export function getAssignedProjects(): string[] {
     .map(m => m.projectSlug)
 }
 
-// --- Discover available projects from C:/Projects ---
+// --- Discover available projects ---
+
+const EXCLUDED = new Set([
+  'stripe', 'stripe-admin', 'node_modules', 'html', 'deploy.sh',
+  'backups', 'monitoring',
+])
 
 export function discoverProjects(): { slug: string; path: string }[] {
-  const projectsRoot = 'C:/Projects'
+  // Detect environment: Windows → C:/Projects, Linux → /var/www
+  const isWindows = process.platform === 'win32'
+  const projectsRoot = isWindows ? 'C:/Projects' : '/var/www'
+
   try {
     const dirs = fs.readdirSync(projectsRoot, { withFileTypes: true })
     return dirs
       .filter(d => d.isDirectory())
-      .filter(d => !d.name.startsWith('.') && d.name !== 'node_modules')
-      .filter(d => d.name !== 'Stripe') // Exclude self
+      .filter(d => !d.name.startsWith('.'))
+      .filter(d => !EXCLUDED.has(d.name.toLowerCase()))
       .map(d => ({
         slug: d.name.toLowerCase().replace(/\s+/g, '-'),
         path: path.join(projectsRoot, d.name),
