@@ -35,11 +35,28 @@ export interface CompanyCredentials {
   live: StripeKeys
 }
 
+/**
+ * Each project has 2 separate Stripe configurations:
+ *
+ * 1. subscriptionCompany — firma care ÎNCASEAZĂ ABONAMENTUL pentru folosirea aplicației
+ *    Ex: Class RDA Impex SRL primește bani de la administratorul care folosește BlocHub
+ *
+ * 2. serviceCompany — firma prin care SE PROCESEAZĂ PLĂȚILE SERVICIILOR
+ *    Ex: Asociația de proprietari primește banii de la chiriași/proprietari prin BlocHub
+ *    Poate fi aceeași firmă sau diferită. Poate lipsi dacă proiectul nu are plăți servicii.
+ */
 export interface ProjectMapping {
   projectSlug: string
   projectPath: string
-  companySlug: string
-  environment: 'test' | 'live'
+  /** Firma care încasează abonamentul SaaS */
+  subscriptionCompany: string
+  subscriptionEnv: 'test' | 'live'
+  /** Firma care procesează plățile de servicii (opțional) */
+  serviceCompany: string
+  serviceEnv: 'test' | 'live'
+  // Legacy compat
+  companySlug?: string
+  environment?: 'test' | 'live'
 }
 
 // --- File helpers ---
@@ -88,8 +105,12 @@ export function upsertCompany(company: CompanyProfile): void {
 export function deleteCompany(slug: string): void {
   const companies = getCompanies().filter(c => c.slug !== slug)
   saveCompanies(companies)
-  // Also remove project mappings for this company
-  const mappings = getProjectMappings().filter(m => m.companySlug !== slug)
+  // Clear this company from project mappings (both subscription and service)
+  const mappings = getProjectMappings().map(m => ({
+    ...m,
+    subscriptionCompany: m.subscriptionCompany === slug ? '' : m.subscriptionCompany,
+    serviceCompany: m.serviceCompany === slug ? '' : m.serviceCompany,
+  })).filter(m => m.subscriptionCompany || m.serviceCompany)
   saveProjectMappings(mappings)
   // Remove credentials
   const creds = getAllCredentials()
@@ -147,11 +168,15 @@ export function removeProjectMapping(projectSlug: string): void {
 }
 
 export function getProjectsForCompany(companySlug: string): ProjectMapping[] {
-  return getProjectMappings().filter(m => m.companySlug === companySlug)
+  return getProjectMappings().filter(m =>
+    m.subscriptionCompany === companySlug || m.serviceCompany === companySlug
+  )
 }
 
 export function getAssignedProjects(): string[] {
-  return getProjectMappings().map(m => m.projectSlug)
+  return getProjectMappings()
+    .filter(m => m.subscriptionCompany || m.serviceCompany)
+    .map(m => m.projectSlug)
 }
 
 // --- Discover available projects from C:/Projects ---
