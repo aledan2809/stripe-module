@@ -7,3 +7,6 @@ dist/
 data/credentials.json
 admin/.next/
 admin/node_modules/
+
+# Next.js auto-generated typegen
+**/next-env.d.ts

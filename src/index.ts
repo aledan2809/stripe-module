@@ -79,3 +79,7 @@ export type { ConnectRouteOptions } from './nextjs/connect-route'
 
 // --- React Components ---
 export { PaymentForm } from './components/PaymentForm'
+
+// --- AI Router ---
+export { routeAI, aiRouter, router } from './lib/ai-router'
+export type { AIRequest, AIResponse } from './lib/ai-router'
