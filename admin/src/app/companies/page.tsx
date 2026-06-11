@@ -33,6 +33,20 @@ export default function CompaniesPage() {
   const [message, setMessage] = useState<{ type: string; text: string } | null>(null)
   const [testingEnv, setTestingEnv] = useState<'test' | 'live' | null>(null)
   const [testResult, setTestResult] = useState<{ env: string; ok: boolean; error?: string } | null>(null)
+  const [copied, setCopied] = useState<string | null>(null)
+
+  const copyValue = async (fieldId: string, value: string) => {
+    if (!value) return
+    try {
+      await navigator.clipboard.writeText(value)
+    } catch {
+      const ta = document.createElement('textarea')
+      ta.value = value; document.body.appendChild(ta); ta.select()
+      document.execCommand('copy'); document.body.removeChild(ta)
+    }
+    setCopied(fieldId)
+    setTimeout(() => setCopied(c => (c === fieldId ? null : c)), 1500)
+  }
 
   const load = () => fetch('/api/companies').then(r => r.json()).then(setCompanies)
   useEffect(() => { load() }, [])
@@ -278,6 +292,11 @@ export default function CompaniesPage() {
                       onClick={() => autoSetup(creds.test.secretKey || creds.live.secretKey)}>
                       {autoLoading ? '...' : '⚡ Detectează'}
                     </button>
+                    <button type="button" className="btn btn-secondary btn-sm"
+                      disabled={!(creds.test.secretKey || creds.live.secretKey)}
+                      onClick={() => copyValue('co-secret', creds.test.secretKey || creds.live.secretKey)}>
+                      {copied === 'co-secret' ? '✓ Copiat' : '📋 Copiază'}
+                    </button>
                   </div>
                 </div>
 
@@ -315,7 +334,14 @@ export default function CompaniesPage() {
               {/* ── Publishable Key ── */}
               <div className="form-grid mb-4">
                 <div className="form-group full">
-                  <label className="form-label">Publishable Key (din aceeași pagină Stripe → API Keys)</label>
+                  <div className="flex justify-between items-center">
+                    <label className="form-label">Publishable Key (din aceeași pagină Stripe → API Keys)</label>
+                    <button type="button" className="btn btn-secondary btn-sm"
+                      disabled={!creds[editing.stripeEnvironment]?.publishableKey}
+                      onClick={() => copyValue('co-pub', creds[editing.stripeEnvironment]?.publishableKey || '')}>
+                      {copied === 'co-pub' ? '✓ Copiat' : '📋 Copiază'}
+                    </button>
+                  </div>
                   <input className="form-input mono"
                     placeholder="pk_test_... sau pk_live_..."
                     value={creds[editing.stripeEnvironment]?.publishableKey || ''}
@@ -326,7 +352,14 @@ export default function CompaniesPage() {
                   />
                 </div>
                 <div className="form-group full">
-                  <label className="form-label">Webhook Secret (Developers → Webhooks → Signing secret)</label>
+                  <div className="flex justify-between items-center">
+                    <label className="form-label">Webhook Secret (Developers → Webhooks → Signing secret)</label>
+                    <button type="button" className="btn btn-secondary btn-sm"
+                      disabled={!creds[editing.stripeEnvironment]?.webhookSecret}
+                      onClick={() => copyValue('co-whsec', creds[editing.stripeEnvironment]?.webhookSecret || '')}>
+                      {copied === 'co-whsec' ? '✓ Copiat' : '📋 Copiază'}
+                    </button>
+                  </div>
                   <input className="form-input mono" type="password"
                     placeholder="whsec_..."
                     value={creds[editing.stripeEnvironment]?.webhookSecret || ''}
