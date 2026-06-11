@@ -16,3 +16,7 @@ projects-stripe-module-*.tgz
 
 # broker runtime session store (contains callbackSecret)
 data/checkout-sessions.json
+
+# runtime data (edited via admin UI / API — NOT seed; gitignored so deploys don't clobber live mappings/companies)
+data/project-mappings.json
+data/companies.json
