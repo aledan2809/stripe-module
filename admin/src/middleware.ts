@@ -20,6 +20,12 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Deployed behind a trusted reverse proxy that authenticates the admin surface
+  // (e.g. nginx basic-auth on stripe.knowbest.ro). The broker endpoints above stay public.
+  if (process.env.STRIPE_ADMIN_PROXY_AUTH === '1') {
+    return NextResponse.next()
+  }
+
   const adminToken = process.env.STRIPE_ADMIN_TOKEN
 
   if (adminToken && request.headers.get('x-admin-token') === adminToken) {
