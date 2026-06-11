@@ -292,12 +292,8 @@ export default function CompaniesPage() {
                       onClick={() => autoSetup(creds.test.secretKey || creds.live.secretKey)}>
                       {autoLoading ? '...' : '⚡ Detectează'}
                     </button>
-                    <button type="button" className="btn btn-secondary btn-sm"
-                      disabled={!(creds.test.secretKey || creds.live.secretKey)}
-                      onClick={() => copyValue('co-secret', creds.test.secretKey || creds.live.secretKey)}>
-                      {copied === 'co-secret' ? '✓ Copiat' : '📋 Copiază'}
-                    </button>
                   </div>
+                  <span className="text-sm text-muted">Doar pentru auto-completare. Cheile editabile + copiabile sunt mai jos la „Chei Stripe (Test + Live)".</span>
                 </div>
 
                 {/* Auto-setup result */}
@@ -329,46 +325,6 @@ export default function CompaniesPage() {
                     )}
                   </div>
                 )}
-              </div>
-
-              {/* ── Publishable Key ── */}
-              <div className="form-grid mb-4">
-                <div className="form-group full">
-                  <div className="flex justify-between items-center">
-                    <label className="form-label">Publishable Key (din aceeași pagină Stripe → API Keys)</label>
-                    <button type="button" className="btn btn-secondary btn-sm"
-                      disabled={!creds[editing.stripeEnvironment]?.publishableKey}
-                      onClick={() => copyValue('co-pub', creds[editing.stripeEnvironment]?.publishableKey || '')}>
-                      {copied === 'co-pub' ? '✓ Copiat' : '📋 Copiază'}
-                    </button>
-                  </div>
-                  <input className="form-input mono"
-                    placeholder="pk_test_... sau pk_live_..."
-                    value={creds[editing.stripeEnvironment]?.publishableKey || ''}
-                    onChange={e => {
-                      const env = editing.stripeEnvironment
-                      setCreds(p => ({ ...p, [env]: { ...p[env], publishableKey: e.target.value } }))
-                    }}
-                  />
-                </div>
-                <div className="form-group full">
-                  <div className="flex justify-between items-center">
-                    <label className="form-label">Webhook Secret (Developers → Webhooks → Signing secret)</label>
-                    <button type="button" className="btn btn-secondary btn-sm"
-                      disabled={!creds[editing.stripeEnvironment]?.webhookSecret}
-                      onClick={() => copyValue('co-whsec', creds[editing.stripeEnvironment]?.webhookSecret || '')}>
-                      {copied === 'co-whsec' ? '✓ Copiat' : '📋 Copiază'}
-                    </button>
-                  </div>
-                  <input className="form-input mono" type="password"
-                    placeholder="whsec_..."
-                    value={creds[editing.stripeEnvironment]?.webhookSecret || ''}
-                    onChange={e => {
-                      const env = editing.stripeEnvironment
-                      setCreds(p => ({ ...p, [env]: { ...p[env], webhookSecret: e.target.value } }))
-                    }}
-                  />
-                </div>
               </div>
 
               {/* ── Company details ── */}
@@ -501,72 +457,106 @@ export default function CompaniesPage() {
                 </div>
               </div>
 
-              {/* ── Keys summary ── */}
-              {!isNew && (
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 16 }}>
-                  <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12, color: 'var(--text-label)' }}>Chei Stripe configurate</h3>
-                  <div className="form-grid">
-                    <div className="form-group">
+              {/* ── Chei Stripe (single source — editable + copiabile, Test + Live) ── */}
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 16 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12, color: 'var(--text-label)' }}>Chei Stripe (Test + Live)</h3>
+                <div className="form-grid">
+                  <div className="form-group">
+                    <div className="flex justify-between items-center">
                       <label className="form-label">Secret Key (test)</label>
-                      <div className="flex gap-2">
-                        <input className="form-input mono" type="password" value={creds.test.secretKey}
-                          placeholder="sk_test_..."
-                          onChange={e => setCreds(p => ({ ...p, test: { ...p.test, secretKey: e.target.value } }))} />
-                        <button className="btn btn-sm btn-secondary" disabled={testingEnv !== null}
-                          onClick={() => testConnection('test')}>
-                          {testingEnv === 'test' ? '...' : '⚡'}
-                        </button>
-                      </div>
-                      {creds.test.secretKey && <span className="text-sm text-muted">{maskKey(creds.test.secretKey)}</span>}
+                      <button type="button" className="btn btn-sm btn-secondary" disabled={!creds.test.secretKey}
+                        onClick={() => copyValue('test-secret', creds.test.secretKey)}>
+                        {copied === 'test-secret' ? '✓' : '📋'}
+                      </button>
                     </div>
-                    <div className="form-group">
-                      <label className="form-label">Secret Key (live)</label>
-                      <div className="flex gap-2">
-                        <input className="form-input mono" type="password" value={creds.live.secretKey}
-                          placeholder="sk_live_..."
-                          onChange={e => setCreds(p => ({ ...p, live: { ...p.live, secretKey: e.target.value } }))} />
-                        <button className="btn btn-sm btn-secondary" disabled={testingEnv !== null}
-                          onClick={() => testConnection('live')}>
-                          {testingEnv === 'live' ? '...' : '⚡'}
-                        </button>
-                      </div>
-                      {creds.live.secretKey && <span className="text-sm text-muted">{maskKey(creds.live.secretKey)}</span>}
+                    <div className="flex gap-2">
+                      <input className="form-input mono" type="password" value={creds.test.secretKey}
+                        placeholder="sk_test_..."
+                        onChange={e => setCreds(p => ({ ...p, test: { ...p.test, secretKey: e.target.value } }))} />
+                      <button className="btn btn-sm btn-secondary" disabled={testingEnv !== null}
+                        onClick={() => testConnection('test')} title="Test conexiune">
+                        {testingEnv === 'test' ? '...' : '⚡'}
+                      </button>
                     </div>
-                    <div className="form-group">
-                      <label className="form-label">Publishable Key (test)</label>
-                      <input className="form-input mono" value={creds.test.publishableKey}
-                        placeholder="pk_test_..."
-                        onChange={e => setCreds(p => ({ ...p, test: { ...p.test, publishableKey: e.target.value } }))} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Publishable Key (live)</label>
-                      <input className="form-input mono" value={creds.live.publishableKey}
-                        placeholder="pk_live_..."
-                        onChange={e => setCreds(p => ({ ...p, live: { ...p.live, publishableKey: e.target.value } }))} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Webhook Secret (test)</label>
-                      <input className="form-input mono" type="password" value={creds.test.webhookSecret}
-                        placeholder="whsec_..."
-                        onChange={e => setCreds(p => ({ ...p, test: { ...p.test, webhookSecret: e.target.value } }))} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Webhook Secret (live)</label>
-                      <input className="form-input mono" type="password" value={creds.live.webhookSecret}
-                        placeholder="whsec_..."
-                        onChange={e => setCreds(p => ({ ...p, live: { ...p.live, webhookSecret: e.target.value } }))} />
-                    </div>
+                    {creds.test.secretKey && <span className="text-sm text-muted">{maskKey(creds.test.secretKey)}</span>}
                   </div>
-
-                  {testResult && (
-                    <div className={`alert mt-2 ${testResult.ok ? 'alert-success' : 'alert-error'}`}>
-                      {testResult.ok
-                        ? `✓ Conexiune ${testResult.env.toUpperCase()} reușită!`
-                        : `✗ ${testResult.env.toUpperCase()}: ${testResult.error}`}
+                  <div className="form-group">
+                    <div className="flex justify-between items-center">
+                      <label className="form-label">Secret Key (live)</label>
+                      <button type="button" className="btn btn-sm btn-secondary" disabled={!creds.live.secretKey}
+                        onClick={() => copyValue('live-secret', creds.live.secretKey)}>
+                        {copied === 'live-secret' ? '✓' : '📋'}
+                      </button>
                     </div>
-                  )}
+                    <div className="flex gap-2">
+                      <input className="form-input mono" type="password" value={creds.live.secretKey}
+                        placeholder="sk_live_..."
+                        onChange={e => setCreds(p => ({ ...p, live: { ...p.live, secretKey: e.target.value } }))} />
+                      <button className="btn btn-sm btn-secondary" disabled={testingEnv !== null}
+                        onClick={() => testConnection('live')} title="Test conexiune">
+                        {testingEnv === 'live' ? '...' : '⚡'}
+                      </button>
+                    </div>
+                    {creds.live.secretKey && <span className="text-sm text-muted">{maskKey(creds.live.secretKey)}</span>}
+                  </div>
+                  <div className="form-group">
+                    <div className="flex justify-between items-center">
+                      <label className="form-label">Publishable Key (test)</label>
+                      <button type="button" className="btn btn-sm btn-secondary" disabled={!creds.test.publishableKey}
+                        onClick={() => copyValue('test-pub', creds.test.publishableKey)}>
+                        {copied === 'test-pub' ? '✓' : '📋'}
+                      </button>
+                    </div>
+                    <input className="form-input mono" value={creds.test.publishableKey}
+                      placeholder="pk_test_..."
+                      onChange={e => setCreds(p => ({ ...p, test: { ...p.test, publishableKey: e.target.value } }))} />
+                  </div>
+                  <div className="form-group">
+                    <div className="flex justify-between items-center">
+                      <label className="form-label">Publishable Key (live)</label>
+                      <button type="button" className="btn btn-sm btn-secondary" disabled={!creds.live.publishableKey}
+                        onClick={() => copyValue('live-pub', creds.live.publishableKey)}>
+                        {copied === 'live-pub' ? '✓' : '📋'}
+                      </button>
+                    </div>
+                    <input className="form-input mono" value={creds.live.publishableKey}
+                      placeholder="pk_live_..."
+                      onChange={e => setCreds(p => ({ ...p, live: { ...p.live, publishableKey: e.target.value } }))} />
+                  </div>
+                  <div className="form-group">
+                    <div className="flex justify-between items-center">
+                      <label className="form-label">Webhook Secret (test)</label>
+                      <button type="button" className="btn btn-sm btn-secondary" disabled={!creds.test.webhookSecret}
+                        onClick={() => copyValue('test-whsec', creds.test.webhookSecret)}>
+                        {copied === 'test-whsec' ? '✓' : '📋'}
+                      </button>
+                    </div>
+                    <input className="form-input mono" type="password" value={creds.test.webhookSecret}
+                      placeholder="whsec_..."
+                      onChange={e => setCreds(p => ({ ...p, test: { ...p.test, webhookSecret: e.target.value } }))} />
+                  </div>
+                  <div className="form-group">
+                    <div className="flex justify-between items-center">
+                      <label className="form-label">Webhook Secret (live)</label>
+                      <button type="button" className="btn btn-sm btn-secondary" disabled={!creds.live.webhookSecret}
+                        onClick={() => copyValue('live-whsec', creds.live.webhookSecret)}>
+                        {copied === 'live-whsec' ? '✓' : '📋'}
+                      </button>
+                    </div>
+                    <input className="form-input mono" type="password" value={creds.live.webhookSecret}
+                      placeholder="whsec_..."
+                      onChange={e => setCreds(p => ({ ...p, live: { ...p.live, webhookSecret: e.target.value } }))} />
+                  </div>
                 </div>
-              )}
+
+                {testResult && (
+                  <div className={`alert mt-2 ${testResult.ok ? 'alert-success' : 'alert-error'}`}>
+                    {testResult.ok
+                      ? `✓ Conexiune ${testResult.env.toUpperCase()} reușită!`
+                      : `✗ ${testResult.env.toUpperCase()}: ${testResult.error}`}
+                  </div>
+                )}
+              </div>
 
               {/* ── Actions ── */}
               <div className="flex gap-3 mt-6" style={{ justifyContent: 'flex-end' }}>
