@@ -24,6 +24,21 @@ export default function CredentialsPage() {
   const [testing, setTesting] = useState<'test' | 'live' | null>(null)
   const [testResult, setTestResult] = useState<{ env: string; result: TestResult } | null>(null)
   const [message, setMessage] = useState<{ type: string; text: string } | null>(null)
+  const [copied, setCopied] = useState<string | null>(null)
+
+  const copyValue = async (fieldId: string, value: string) => {
+    if (!value) return
+    try {
+      await navigator.clipboard.writeText(value)
+    } catch {
+      // Fallback for older browsers / non-secure contexts
+      const ta = document.createElement('textarea')
+      ta.value = value; document.body.appendChild(ta); ta.select()
+      document.execCommand('copy'); document.body.removeChild(ta)
+    }
+    setCopied(fieldId)
+    setTimeout(() => setCopied(c => (c === fieldId ? null : c)), 1500)
+  }
 
   useEffect(() => {
     fetch('/api/companies').then(r => r.json()).then(setCompanies)
@@ -111,7 +126,14 @@ export default function CredentialsPage() {
 
         <div className="form-grid">
           <div className="form-group full">
-            <label className="form-label">Secret Key ({env})</label>
+            <div className="flex justify-between items-center">
+              <label className="form-label">Secret Key ({env})</label>
+              <button type="button" className="btn btn-secondary btn-sm"
+                disabled={!keys.secretKey}
+                onClick={() => copyValue(`${env}-secret`, keys.secretKey)}>
+                {copied === `${env}-secret` ? '✓ Copiat' : '📋 Copiază'}
+              </button>
+            </div>
             <input className="form-input mono" type="password"
               value={keys.secretKey}
               placeholder={`sk_${env}_...`}
@@ -122,7 +144,14 @@ export default function CredentialsPage() {
           </div>
 
           <div className="form-group full">
-            <label className="form-label">Publishable Key ({env})</label>
+            <div className="flex justify-between items-center">
+              <label className="form-label">Publishable Key ({env})</label>
+              <button type="button" className="btn btn-secondary btn-sm"
+                disabled={!keys.publishableKey}
+                onClick={() => copyValue(`${env}-pub`, keys.publishableKey)}>
+                {copied === `${env}-pub` ? '✓ Copiat' : '📋 Copiază'}
+              </button>
+            </div>
             <input className="form-input mono"
               value={keys.publishableKey}
               placeholder={`pk_${env}_...`}
@@ -130,7 +159,14 @@ export default function CredentialsPage() {
           </div>
 
           <div className="form-group full">
-            <label className="form-label">Webhook Secret ({env})</label>
+            <div className="flex justify-between items-center">
+              <label className="form-label">Webhook Secret ({env})</label>
+              <button type="button" className="btn btn-secondary btn-sm"
+                disabled={!keys.webhookSecret}
+                onClick={() => copyValue(`${env}-whsec`, keys.webhookSecret)}>
+                {copied === `${env}-whsec` ? '✓ Copiat' : '📋 Copiază'}
+              </button>
+            </div>
             <input className="form-input mono" type="password"
               value={keys.webhookSecret}
               placeholder="whsec_..."
