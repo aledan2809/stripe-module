@@ -12,31 +12,34 @@
 > Toate scenariile rulează pe Stripe **TEST mode** (chei din `Master/credentials/stripe.env`).
 
 ### Workflow scenarios (S1-S12)
-- [ ] S1 — Checkout session `payment` mode (inline line items) → URL valid `checkout.stripe.com`
-- [ ] S2 — Checkout session `subscription` mode + trialDays → session creată cu trial
-- [ ] S3 — PaymentIntent create + confirm cu `pm_card_visa` → status `succeeded` (rol: Buyer)
-- [ ] S4 — Webhook: semnătură validă acceptată + semnătură invalidă RESPINSĂ (negative test) + secret greșit respins
-- [ ] S5 — Refund full + partial pe PaymentIntent reușit → status `succeeded` pe refund
-- [ ] S6 — Customer create → subscription create (price din S7) → cancel → status `canceled`
-- [ ] S7 — Plan sync: syncPlans creează produs+preț → re-sync idempotent (0 created/updated) → schimbare amount → preț NOU creat + vechi dezactivat → plan scos → produs dezactivat
-- [ ] S8 — Connect (rol: Seller): createConnectedAccount express → account link URL → marketplace payment cu platformFee → cleanup (delete account)
-- [ ] S9 — Credentials resolution: env vars > programmatic > .credentials.json (prioritate corectă + eroare clară când lipsesc)
-- [ ] S10 — Billing portal session (necesită portal config pe contul test; dacă lipsește → BLOCKED documentat)
-- [ ] S11 — toStripeAmount edge cases: 10.005, 0.1+0.2, valori mari — rounding corect, fără drift de bani
-- [ ] S12 — Admin panel (rol: Platform-Operator): walk /, /companies, /projects, /credentials + test-connection cu cheia test
+- [x] S1 — Checkout session `payment` (2026-06-11) — URL checkout.stripe.com valid
+- [x] S2 — Checkout session `subscription` + trial (2026-06-11)
+- [x] S3 — PaymentIntent + confirm `pm_card_visa` → `succeeded` (2026-06-11)
+- [x] S4 — Webhook: valid acceptat + 2 negative respinse (2026-06-11)
+- [x] S5 — Refund full + partial → `succeeded` (2026-06-11)
+- [x] S6 — Customer → subscription → cancel → `canceled` (2026-06-11)
+- [x] S7 — Plan sync lifecycle complet idempotent (2026-06-11) — a expus G-STRIPE-010
+- [~] S8 — Connect marketplace — **BLOCKED** (Connect neactivat pe cont test; acțiune user dashboard.stripe.com/connect)
+- [x] S9 — Credentials resolution: env > programmatic > eroare (2026-06-11)
+- [x] S10 — Billing portal session (2026-06-11)
+- [x] S11 — toStripeAmount edge cases 6/6 (2026-06-11)
+- [x] S12 — Admin panel walk (acoperit de TG flows + headed G1-G4, 2026-06-11)
 
 ### Concurrency (C1-C3)
-- [ ] C1 — Webhook duplicate delivery (același event de 2×): modulul NU deduplichează (by design — consumer responsibility) → verificat + documentat în USAGE
-- [ ] C2 — syncPlans paralel (2× simultan, același proiect): search-then-create nu e atomic → risc duplicat produs — verificat/analizat + documentat
-- [ ] C3 — Multi-company key-switch race (useCompany global state) → analizat, gap G-STRIPE-004
+- [x] C1 — Webhook duplicate: NU deduplichează (by design) → documentat în `Knowledge/USAGE.md` (2026-06-11)
+- [x] C2 — syncPlans paralel: race CONFIRMAT → G-STRIPE-010 (2026-06-11)
+- [x] C3 — useCompany global-state bleed CONFIRMAT → G-STRIPE-004 (2026-06-11)
 
 ---
 
 ## Items operaționale
 
-- [ ] **Commit diff-ul pending**: `ai-router` → peerDependencies (pattern L93) + companie `teinformez` în registry. Diff verificat OK în /review 2026-06-11.
-- [ ] **G-STRIPE-001**: auth pe admin panel API (vezi AUDIT_GAPS.md)
-- [ ] **G-STRIPE-002**: șterge/relocă `test-aiwebauditor-webhook.mjs` (chei hardcodate; canonical e `Master/credentials/stripe.env`)
+- [ ] **Commit diff-ul pending**: `ai-router` → peerDependencies (pattern L93) + companie `teinformez` în registry. Diff verificat OK în /review 2026-06-11. (rămas necomis — vezi mai jos)
+- [x] **G-STRIPE-001**: auth pe admin panel API — DONE 2026-06-11 (`b40a19f`, middleware localhost-only)
+- [x] **G-STRIPE-002**: `test-aiwebauditor-webhook.mjs` citește din env — DONE 2026-06-11 (`b40a19f`)
+- [ ] **G-STRIPE-010 (P1)**: idempotency syncPlans (search→list) — sesiune dedicată propose-confirm-apply §6.1
+- [ ] **G-STRIPE-009 (P2)**: vitest suite (seed: `scripts/true-e2e-scenarios.mjs`)
+- [ ] **G-STRIPE-003/004/007/008**: fix-uri pe lib — propose-confirm-apply §6.1
 
 ---
 

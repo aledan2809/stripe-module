@@ -1,0 +1,87 @@
+{
+  "run": "true-e2e-1781162761804",
+  "counts": {
+    "PASS": 10,
+    "FAIL": 0,
+    "BLOCKED": 1
+  },
+  "results": [
+    {
+      "id": "S1-checkout-payment",
+      "role": "Integrator",
+      "status": "PASS",
+      "ms": 870,
+      "note": "cs_test_a1UVhhnFemcdPbmv7X6ePEUX1yzdIAUupSTWYZN49ah7e2s54UekTeDWy4"
+    },
+    {
+      "id": "S2-checkout-subscription-trial",
+      "role": "Integrator",
+      "status": "PASS",
+      "ms": 637,
+      "note": "cs_test_a1twSc1PStv9b3GUC0kB5BsxudOJEULUBDN3zWcO2787K4aVwjUBz319kH"
+    },
+    {
+      "id": "S3-payment-intent-confirm",
+      "role": "Buyer",
+      "status": "PASS",
+      "ms": 1690,
+      "note": "pi_3Th303AJZnzv9xfg0YKwLIza succeeded, amount=10000"
+    },
+    {
+      "id": "S4-webhook-signature",
+      "role": "Integrator",
+      "status": "PASS",
+      "ms": 1,
+      "note": "valid acceptat + 2 negative respinse"
+    },
+    {
+      "id": "S5-refund-full-and-partial",
+      "role": "Platform",
+      "status": "PASS",
+      "ms": 2943,
+      "note": "partial 30.00 + rest 70.00 pe pi_3Th303AJZnzv9xfg0YKwLIza"
+    },
+    {
+      "id": "S7-plan-sync-lifecycle",
+      "role": "Platform",
+      "status": "PASS",
+      "ms": 30704,
+      "note": "create→idempotent→price-change(nou+dezactivat)→remove(dezactivat); priceId=price_1Th30aAJZnzv9xfgtXtRrP2O"
+    },
+    {
+      "id": "S6-customer-subscription-cancel",
+      "role": "Buyer",
+      "status": "PASS",
+      "ms": 3675,
+      "note": "customer=cus_UgPqXlWPIPh5zL, sub trialing→canceled (price propriu price_1Th30dAJZnzv9xfgiuZX8mBO)"
+    },
+    {
+      "id": "S8-connect-marketplace",
+      "role": "Seller",
+      "status": "BLOCKED",
+      "ms": 290,
+      "note": "Connect NU e activat pe contul test (acțiune user: dashboard.stripe.com/connect) — nu e bug de modul"
+    },
+    {
+      "id": "S9-credentials-resolution",
+      "role": "Integrator",
+      "status": "PASS",
+      "ms": 1,
+      "note": "env > programmatic > eroare clară"
+    },
+    {
+      "id": "S10-billing-portal",
+      "role": "Buyer",
+      "status": "PASS",
+      "ms": 369,
+      "note": "https://billing.stripe.com/p/session/test_YWNjdF8xVENLakhBSl"
+    },
+    {
+      "id": "S11-amount-rounding",
+      "role": "Integrator",
+      "status": "PASS",
+      "ms": 0,
+      "note": "6 cazuri OK"
+    }
+  ]
+}

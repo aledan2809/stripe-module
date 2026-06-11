@@ -1,0 +1,87 @@
+[
+  {
+    "page": "home",
+    "viewport": "desktop",
+    "bodyLen": 671,
+    "pageErrors": 0,
+    "a11yViolations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "nodes": 12
+      }
+    ]
+  },
+  {
+    "page": "companies",
+    "viewport": "desktop",
+    "bodyLen": 563,
+    "pageErrors": 0,
+    "a11yViolations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "nodes": 11
+      }
+    ]
+  },
+  {
+    "page": "projects",
+    "viewport": "desktop",
+    "bodyLen": 4618,
+    "pageErrors": 0,
+    "a11yViolations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "nodes": 6
+      },
+      {
+        "id": "select-name",
+        "impact": "critical",
+        "nodes": 1
+      }
+    ]
+  },
+  {
+    "page": "credentials",
+    "viewport": "desktop",
+    "bodyLen": 673,
+    "pageErrors": 0,
+    "a11yViolations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "nodes": 5
+      }
+    ]
+  },
+  {
+    "page": "home",
+    "viewport": "mobile",
+    "bodyLen": 671,
+    "pageErrors": 0,
+    "a11yViolations": null
+  },
+  {
+    "page": "companies",
+    "viewport": "mobile",
+    "bodyLen": 563,
+    "pageErrors": 0,
+    "a11yViolations": null
+  },
+  {
+    "page": "projects",
+    "viewport": "mobile",
+    "bodyLen": 4618,
+    "pageErrors": 0,
+    "a11yViolations": null
+  },
+  {
+    "page": "credentials",
+    "viewport": "mobile",
+    "bodyLen": 673,
+    "pageErrors": 0,
+    "a11yViolations": null
+  }
+]

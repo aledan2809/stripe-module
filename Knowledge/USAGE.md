@@ -257,6 +257,11 @@ window.location.href = url  // redirect to Stripe self-service portal
 
 ## 7. Webhooks
 
+> **⚠️ Idempotență (C1, audit 2026-06-11):** modulul NU deduplichează evenimentele — Stripe poate livra
+> același eveniment de mai multe ori (retry/duplicate delivery), iar handler-ul tău va fi invocat de fiecare dată.
+> Deduplicarea pe `event.id` este responsabilitatea consumatorului (ex: tabel `processed_stripe_events`
+> cu unique pe event id, sau update-uri idempotente ca în exemplele de mai jos).
+
 ### Next.js Route — `app/api/stripe/webhook/route.ts`
 ```ts
 import { webhookRoute } from '@projects/stripe-module'

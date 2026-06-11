@@ -1,0 +1,20 @@
+{
+  "run": "conc-1781162877304",
+  "results": [
+    {
+      "id": "C1-webhook-duplicate",
+      "status": "DOCUMENTED",
+      "note": "modulul NU deduplichează pe event.id (by design) — handler invocat 2/2; dedup = responsabilitatea consumatorului (de notat în Knowledge/USAGE.md)"
+    },
+    {
+      "id": "C2-parallel-sync-race",
+      "status": "PASS",
+      "note": "race CONFIRMAT (G-STRIPE-010): 2 sync-uri paralele → 2 produse create (0 găsite la cleanup) — duplicate reale în contul Stripe"
+    },
+    {
+      "id": "C3-multicompany-bleed",
+      "status": "PASS",
+      "note": "bleed CONFIRMAT (G-STRIPE-004): request-ul A (firmă RON) a citit currency='eur' după ce B a comutat global pe EUR — useCompany/configureStripeModule sunt nesigure multi-company concurrent"
+    }
+  ]
+}
