@@ -5,13 +5,7 @@
 
 ## Open Gaps
 
-| ID | Sev | Fișier | Descriere | Status |
-|----|-----|--------|-----------|--------|
-| G-STRIPE-003 | P2 | `src/server/sync.ts:355` | Prețurile re-create în `syncPrices` primesc metadata `project: plan.slug` (slug-ul PLANULUI în câmpul project) și omit `planSlug` — drift de metadata vs prețurile create inițial în `syncPlans` (care pun corect `project` + `planSlug`). Nu rupe discovery (search e pe products), dar corupe trasabilitatea. **Fix pe lib → propose-confirm-apply per §6.1 (BlocHub NO-TOUCH consumer).** | OPEN |
-| G-STRIPE-004 | P2 | `src/companies/use-company.ts` | `useCompany()` mută state global de modul (config + keyProvider + activeCompanySlug) — într-un proces care servește 2+ companii concurrent, currency/cheia pot „sângera" între requesturi. Safe path existent: `getStripeForCompany()`. Fix de design: documentare explicită single-company-per-process + deprecation warning, sau AsyncLocalStorage. **Propose-confirm-apply per §6.1.** | OPEN |
-| G-STRIPE-007 | P3 | `src/nextjs/sync-route.ts`, `connect-route.ts` | `authorize` e opțional pe rute destructive (sync dezactivează produse; connect șterge conturi). Footgun: consumatorul poate monta ruta fără auth. Fix: warn la runtime când lipsește authorize, sau required în tipuri pentru rutele destructive. **Propose-confirm-apply per §6.1.** | OPEN |
-| G-STRIPE-008 | P3 | `src/server/connect.ts:209` | `createMarketplacePayment`/`createMarketplaceCheckout` nu validează `platformFee <= amount` și `amount > 0` — eroarea Stripe rezultată e criptică pentru integrator. Fix: validare explicită cu mesaj clar. **Propose-confirm-apply per §6.1.** | OPEN |
-| G-STRIPE-009 | P2 | `package.json` | Zero framework de teste în modul (fără vitest/jest) — bibliotecă de PLĂȚI consumată de 4+ proiecte fără un singur test unitar. Confirmat de [7] CODE audit 2026-06-11. Fix: vitest + teste pe utils/credentials/webhook/sync (pure-logic, fără API calls). Seed disponibil: `scripts/true-e2e-scenarios.mjs`. | OPEN |
+_Niciun gap deschis — toate închise 2026-06-11._
 
 ## Eliminated Gaps
 
@@ -22,3 +16,8 @@
 | G-STRIPE-005 | P2 | `discoverProjects()` hardcoda `/var/www` pe non-Windows → [] pe macOS. Fix: `PROJECTS_ROOT` env override + darwin → `~/Projects`. Verificat live: /api/projects returnează lista completă din ~/Projects. | 2026-06-11 | (vezi commit fix [10]) |
 | G-STRIPE-006 | P3 | `DATA_DIR` dependent de cwd. Fix: `resolveDataDir()` — env `STRIPE_ADMIN_DATA_DIR` > candidați cwd validați prin existența `companies.json`. | 2026-06-11 | (vezi commit fix [10]) |
 | G-STRIPE-010 | P1 | `syncPlans` duplica produse (`products.search` eventually-consistent ~16-60s). Fix: `products.list` strongly-consistent + filtru client-side metadata + auto-pagination (`src/server/sync.ts:fetchProjectProducts`). Verificat: re-sync IMEDIAT idempotent (0 created, exact 1 produs, fără cele 90s de workaround). §6.1: 0 consumatori apelează syncPlans; dist nou se preia organic la next build; health PRO/eat/teinformez/utilajhub/cabinet toți 200. **Notă reziduală:** race-ul STRICT-concurent (C2, 2 sync paralele) rămâne posibil — e read-then-create fără lock, root-cause diferit de eventual-consistency; necesită idempotency-key/lock (gap separat dacă apare în prod). | 2026-06-11 | (commit lib) |
+| G-STRIPE-003 | P2 | Prețurile re-create în `syncPrices` primeau metadata `project: plan.slug` (greșit) + omiteau `planSlug`. Fix: pasez `project` real în `syncPrices` + metadata `{ project, planSlug, managedBy }` (`src/server/sync.ts`). Verificat live: preț re-creat are `project=<run>` + `planSlug=p`. | 2026-06-11 | (commit lib P2/P3) |
+| G-STRIPE-004 | P2 | `useCompany()` mută state global → bleed multi-company concurrent. Fix: JSDoc explicit „single-company-per-process; folosește `getStripeForCompany()` pt multi-tenant" + `console.warn` la switch de companie activă (`src/companies/use-company.ts`). Path-ul sigur `getStripeForCompany()` exista deja. | 2026-06-11 | (commit lib P2/P3) |
+| G-STRIPE-007 | P3 | `authorize` opțional pe rute destructive. Fix: `console.warn` la montarea `syncRoute`/`connectRoute` fără `authorize` (`src/nextjs/{sync,connect}-route.ts`). | 2026-06-11 | (commit lib P2/P3) |
+| G-STRIPE-008 | P3 | Marketplace nu valida `amount>0` / `platformFee<=amount`. Fix: `validateMarketplaceAmounts` (exportat) cu mesaje clare, apelat în `createMarketplacePayment`+`createMarketplaceCheckout` (`src/server/connect.ts`). Acoperit de teste unitare (4 cazuri). | 2026-06-11 | (commit lib P2/P3) |
+| G-STRIPE-009 | P2 | Zero teste unitare. Fix: vitest + `src/__tests__/unit.test.ts` (10 teste: money math 3 + marketplace validation 4 + credential resolution 3). `npm test`; `tsconfig` exclude `__tests__` din build. | 2026-06-11 | (commit lib P2/P3) |

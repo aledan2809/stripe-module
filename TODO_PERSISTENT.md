@@ -37,9 +37,11 @@
 - [ ] **Commit diff-ul pending**: `ai-router` → peerDependencies (pattern L93) + companie `teinformez` în registry. Diff verificat OK în /review 2026-06-11. (rămas necomis — vezi mai jos)
 - [x] **G-STRIPE-001**: auth pe admin panel API — DONE 2026-06-11 (`b40a19f`, middleware localhost-only)
 - [x] **G-STRIPE-002**: `test-aiwebauditor-webhook.mjs` citește din env — DONE 2026-06-11 (`b40a19f`)
-- [ ] **G-STRIPE-010 (P1)**: idempotency syncPlans (search→list) — sesiune dedicată propose-confirm-apply §6.1
-- [ ] **G-STRIPE-009 (P2)**: vitest suite (seed: `scripts/true-e2e-scenarios.mjs`)
-- [ ] **G-STRIPE-003/004/007/008**: fix-uri pe lib — propose-confirm-apply §6.1
+- [x] **G-STRIPE-010 (P1)**: idempotency syncPlans (search→list) — DONE 2026-06-11 (commit `6e90316`)
+- [x] **G-STRIPE-009 (P2)**: vitest suite — DONE 2026-06-11 (10 teste pure-logic)
+- [x] **G-STRIPE-003/004/007/008**: fix-uri pe lib — DONE 2026-06-11 (§6.1, health consumatori 200)
+
+> **Toate gap-urile închise 2026-06-11.** AUDIT_GAPS.md = 0 open.
 
 ---
 

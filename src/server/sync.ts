@@ -134,7 +134,7 @@ export async function syncPlans(
 
       // Sync prices
       const priceMapping = await syncPrices(
-        stripe, existing.product.id, plan, existing.prices, config.currency, result
+        stripe, existing.product.id, project, plan, existing.prices, config.currency, result
       )
 
       result.mapping[plan.slug] = {
@@ -290,6 +290,7 @@ async function fetchProjectProducts(
 async function syncPrices(
   stripe: Stripe,
   productId: string,
+  project: string,
   plan: PlanDefinition,
   existingPrices: Stripe.Price[],
   defaultCurrency: string,
@@ -357,7 +358,8 @@ async function syncPrices(
           usage_type: priceDef.usageType || 'licensed',
         },
         metadata: {
-          project: plan.slug,
+          project,
+          planSlug: plan.slug,
           managedBy: 'stripe-module',
         },
       })

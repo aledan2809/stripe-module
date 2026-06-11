@@ -3,6 +3,22 @@ import { getStripe } from '../client'
 import { getConfig } from '../config'
 import { toStripeAmount } from '../utils'
 
+/**
+ * Validate marketplace amounts up front (G-STRIPE-008) so the integrator gets a clear
+ * error instead of a cryptic Stripe one (e.g. application_fee_amount > amount).
+ */
+export function validateMarketplaceAmounts(amount: number, platformFee: number): void {
+  if (!(amount > 0)) {
+    throw new Error(`Marketplace amount must be > 0 (got ${amount}).`)
+  }
+  if (platformFee < 0) {
+    throw new Error(`Marketplace platformFee cannot be negative (got ${platformFee}).`)
+  }
+  if (platformFee > amount) {
+    throw new Error(`Marketplace platformFee (${platformFee}) cannot exceed amount (${amount}).`)
+  }
+}
+
 // --- Types ---
 
 export interface CreateConnectedAccountInput {
@@ -209,6 +225,7 @@ export async function deleteConnectedAccount(accountId: string): Promise<void> {
 export async function createMarketplacePayment(
   input: CreateMarketplacePaymentInput
 ): Promise<MarketplacePaymentResult> {
+  validateMarketplaceAmounts(input.amount, input.platformFee)
   const stripe = await getStripe()
   const config = getConfig()
   const currency = input.currency || config.currency
@@ -241,6 +258,8 @@ export async function createMarketplacePayment(
 export async function createMarketplaceCheckout(
   input: CreateMarketplaceCheckoutInput
 ): Promise<{ sessionId: string; url: string }> {
+  const total = input.lineItems.reduce((s, i) => s + i.amount * (i.quantity || 1), 0)
+  validateMarketplaceAmounts(total, input.platformFee)
   const stripe = await getStripe()
   const config = getConfig()
   const currency = input.currency || config.currency

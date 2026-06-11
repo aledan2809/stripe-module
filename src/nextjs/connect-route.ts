@@ -29,6 +29,10 @@ export interface ConnectRouteOptions {
  * ```
  */
 export function connectRoute(options: ConnectRouteOptions = {}) {
+  if (!options.authorize) {
+    // G-STRIPE-007: this route can create/delete connected accounts and move money.
+    console.warn('[stripe-module] connectRoute mounted WITHOUT an authorize() guard — anyone can call destructive Connect actions. Pass options.authorize.')
+  }
   return {
     /**
      * POST actions:

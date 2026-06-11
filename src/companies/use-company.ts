@@ -15,6 +15,12 @@ const stripeInstances: Map<string, Stripe> = new Map()
  * Activate a company for the Stripe module.
  * Configures currency, country, and Stripe keys automatically.
  *
+ * ⚠️ SINGLE-COMPANY-PER-PROCESS ONLY (G-STRIPE-004): this mutates module-global state
+ * (config + key provider + active slug). In a process that serves MULTIPLE companies
+ * concurrently (e.g. multi-tenant request handlers), currency/keys can bleed between
+ * in-flight requests. For multi-company use `getStripeForCompany(slug)` instead — it
+ * returns an isolated, cached Stripe instance per company with no global mutation.
+ *
  * Usage in app startup (e.g., Next.js middleware or layout):
  * ```ts
  * import { useCompany } from '@projects/stripe-module'
@@ -27,6 +33,15 @@ export function useCompany(slug: string): CompanyConfig {
   if (!profile) {
     throw new Error(
       `Company "${slug}" not registered. Add it in src/companies/registry.ts`
+    )
+  }
+
+  if (activeCompanySlug && activeCompanySlug !== slug) {
+    // Switching the global active company mid-process — safe only if companies aren't
+    // served concurrently. Multi-tenant callers should use getStripeForCompany() instead.
+    console.warn(
+      `[stripe-module] useCompany('${slug}') switched the global active company from '${activeCompanySlug}'. ` +
+      `If this process serves multiple companies concurrently, use getStripeForCompany('${slug}') to avoid currency/key bleed (G-STRIPE-004).`
     )
   }
 

@@ -18,6 +18,10 @@ export interface SyncRouteOptions {
  * POST body: { project: string, plans: PlanDefinition[] }
  */
 export function syncRoute(options: SyncRouteOptions = {}) {
+  if (!options.authorize) {
+    // G-STRIPE-007: sync can deactivate products/prices in the live Stripe account.
+    console.warn('[stripe-module] syncRoute mounted WITHOUT an authorize() guard — anyone can mutate/deactivate plans. Pass options.authorize.')
+  }
   return {
     async POST(request: NextRequest) {
       try {
