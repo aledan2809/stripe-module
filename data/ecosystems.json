@@ -1,0 +1,21 @@
+{
+  "_comment": "Curated ecosystem → projects grouping for the broker project picker (source: Master/ECOSYSTEM_REGISTRY.md). Projects not listed here fall under 'Alte proiecte (descoperite)' from filesystem discovery.",
+  "ecosystems": [
+    {
+      "name": "4PRO (*.4pro.io)",
+      "projects": ["4pro-landing", "4pro-biz", "4pro-client", "4pro-identity", "4pro-eat", "pro", "ecabinet"]
+    },
+    {
+      "name": "AVE / TechBiz (*.techbiz.ae)",
+      "projects": ["ave-platform", "website-guru", "marketing-automation", "aiwebauditor", "tester"]
+    },
+    {
+      "name": "KnowBest (*.knowbest.ro)",
+      "projects": ["knowbest", "offer", "legal", "headhunter", "rpa-hub", "tutor", "seap", "tradeinvest", "source"]
+    },
+    {
+      "name": "Standalone",
+      "projects": ["blochub", "procuchaingo2", "4updf", "teinformez", "utilajhub-next", "eprofit", "pmb", "racex-ride-book", "devlearningplatform", "meeting-rec", "feedback-hub", "myholiday"]
+    }
+  ]
+}

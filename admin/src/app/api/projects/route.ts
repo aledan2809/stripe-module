@@ -5,6 +5,7 @@ import {
   upsertProjectMapping,
   removeProjectMapping,
   getAssignedProjects,
+  getGroupedProjects,
 } from '@/lib/data'
 import { generateBrokerKeys } from '@/lib/broker'
 
@@ -12,9 +13,11 @@ export async function GET() {
   const allProjects = discoverProjects()
   const mappings = getProjectMappings()
   const assigned = getAssignedProjects()
+  const groups = getGroupedProjects()
 
   return NextResponse.json({
     available: allProjects,
+    groups,
     mappings,
     assigned,
   })

@@ -210,6 +210,44 @@ export function findMappingByApiKey(apiKey: string): ProjectMapping | undefined 
   return getProjectMappings().find(m => m.apiKey === apiKey)
 }
 
+// --- Ecosystems (curated grouping for the project picker) ---
+
+export interface Ecosystem {
+  name: string
+  projects: string[]
+}
+
+export function getEcosystems(): Ecosystem[] {
+  const data = readJson<{ ecosystems: Ecosystem[] }>('ecosystems.json', { ecosystems: [] })
+  return data.ecosystems || []
+}
+
+/**
+ * Build the full grouped project list: every curated ecosystem project (so the list is
+ * complete regardless of which host the broker runs on) + an "Alte proiecte (descoperite)"
+ * group for filesystem-discovered projects not in any ecosystem.
+ */
+export function getGroupedProjects(): Array<{ name: string; projects: { slug: string; path: string }[] }> {
+  const discovered = discoverProjects()
+  const bySlug = new Map(discovered.map(p => [p.slug, p]))
+  const ecosystems = getEcosystems()
+  const claimed = new Set<string>()
+
+  const groups = ecosystems.map(eco => ({
+    name: eco.name,
+    projects: eco.projects.map(slug => {
+      claimed.add(slug)
+      return { slug, path: bySlug.get(slug)?.path || '' }
+    }),
+  }))
+
+  const others = discovered.filter(p => !claimed.has(p.slug))
+  if (others.length) {
+    groups.push({ name: 'Alte proiecte (descoperite)', projects: others })
+  }
+  return groups
+}
+
 export function getAssignedProjects(): string[] {
   return getProjectMappings()
     .filter(m => m.subscriptionCompany || m.serviceCompany)

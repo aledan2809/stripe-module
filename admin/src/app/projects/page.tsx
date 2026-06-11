@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 
 interface ProjectInfo { slug: string; path: string }
+interface EcoGroup { name: string; projects: ProjectInfo[] }
 interface Mapping {
   projectSlug: string; projectPath: string
   subscriptionCompany: string; subscriptionEnv: 'test' | 'live'
@@ -20,6 +21,7 @@ const EMPTY_MAPPING: Omit<Mapping, 'projectSlug' | 'projectPath'> = {
 
 export default function ProjectsPage() {
   const [available, setAvailable] = useState<ProjectInfo[]>([])
+  const [groups, setGroups] = useState<EcoGroup[]>([])
   const [mappings, setMappings] = useState<Mapping[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [editing, setEditing] = useState<Mapping | null>(null)
@@ -33,6 +35,7 @@ export default function ProjectsPage() {
       fetch('/api/companies').then(r => r.json()),
     ])
     setAvailable(projData.available)
+    setGroups(projData.groups || [])
     setMappings(projData.mappings)
     setCompanies(compData)
   }
@@ -241,37 +244,39 @@ export default function ProjectsPage() {
           </div>
         )}
 
-        {/* Add project */}
+        {/* Add project — grouped by ecosystem */}
         <div className="card">
           <div className="card-header">
             <div>
               <div className="card-title">Adaugă proiect</div>
-              <div className="card-subtitle">Selectează un proiect din dropdown și configurează Stripe</div>
+              <div className="card-subtitle">Proiectele sunt grupate pe ecosisteme. Click pe un proiect pentru a-l configura.</div>
             </div>
           </div>
 
           {companies.length === 0 ? (
             <div className="alert alert-info">Adaugă mai întâi o firmă în pagina Firme.</div>
           ) : (
-            <div className="flex gap-3 items-center">
-              <select className="form-select" style={{ flex: 1 }}
-                value=""
-                onChange={e => {
-                  const slug = e.target.value
-                  if (!slug) return
-                  const proj = available.find(p => p.slug === slug)
-                  if (proj) openConfig(proj)
-                }}>
-                <option value="">— Selectează proiectul —</option>
-                {available.map(p => {
-                  const isConfigured = configuredSlugs.includes(p.slug)
-                  return (
-                    <option key={p.slug} value={p.slug} disabled={isConfigured}>
-                      {p.slug} {isConfigured ? '(configurat)' : ''} — {p.path}
-                    </option>
-                  )
-                })}
-              </select>
+            <div className="flex flex-col gap-4">
+              {groups.map(group => (
+                <div key={group.name}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#a78bfa', marginBottom: 8 }}>
+                    {group.name} <span className="text-muted" style={{ fontWeight: 400 }}>({group.projects.length})</span>
+                  </div>
+                  <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+                    {group.projects.map(p => {
+                      const isConfigured = configuredSlugs.includes(p.slug)
+                      return (
+                        <button key={p.slug}
+                          className={`btn btn-sm ${isConfigured ? 'btn-success' : 'btn-secondary'}`}
+                          title={p.path || 'nedescoperit pe acest host'}
+                          onClick={() => openConfig(p)}>
+                          {p.slug}{isConfigured ? ' ✓' : ''}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
