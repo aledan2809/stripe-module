@@ -1,7 +1,25 @@
 import fs from 'fs'
 import path from 'path'
+import os from 'os'
 
-const DATA_DIR = path.resolve(process.cwd(), '../data')
+/**
+ * Resolve the module's data/ dir robustly (G-STRIPE-006):
+ * env override > cwd-relative candidates (admin cwd or repo-root cwd).
+ * Falls back to ../data (the historical default) if nothing exists yet.
+ */
+function resolveDataDir(): string {
+  if (process.env.STRIPE_ADMIN_DATA_DIR) return process.env.STRIPE_ADMIN_DATA_DIR
+  const candidates = [
+    path.resolve(process.cwd(), '../data'), // started from admin/ (next dev default)
+    path.resolve(process.cwd(), 'data'),    // started from the Stripe repo root
+  ]
+  for (const dir of candidates) {
+    if (fs.existsSync(path.join(dir, 'companies.json'))) return dir
+  }
+  return candidates[0]
+}
+
+const DATA_DIR = resolveDataDir()
 
 // --- Types ---
 
@@ -187,9 +205,14 @@ const EXCLUDED = new Set([
 ])
 
 export function discoverProjects(): { slug: string; path: string }[] {
-  // Detect environment: Windows → C:/Projects, Linux → /var/www
-  const isWindows = process.platform === 'win32'
-  const projectsRoot = isWindows ? 'C:/Projects' : '/var/www'
+  // Detect environment: Windows → C:/Projects, macOS → ~/Projects, Linux/VPS → /var/www (G-STRIPE-005)
+  const projectsRoot =
+    process.env.PROJECTS_ROOT ||
+    (process.platform === 'win32'
+      ? 'C:/Projects'
+      : process.platform === 'darwin'
+        ? path.join(os.homedir(), 'Projects')
+        : '/var/www')
 
   try {
     const dirs = fs.readdirSync(projectsRoot, { withFileTypes: true })
