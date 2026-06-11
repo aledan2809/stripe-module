@@ -260,13 +260,18 @@ async function fetchProjectProducts(
 ): Promise<Map<string, ExistingProduct>> {
   const map = new Map<string, ExistingProduct>()
 
-  // Search for products managed by this module for this project
-  const products = await stripe.products.search({
-    query: `metadata["project"]:"${project}" AND metadata["managedBy"]:"stripe-module"`,
-    limit: 100,
-  })
+  // Use list (strongly-consistent) + client-side metadata filter instead of search
+  // (eventually-consistent ~16-60s → consecutive syncs miss the just-created product and
+  // duplicate it; G-STRIPE-010). list has no server-side metadata filter, so we paginate
+  // and filter here. Auto-pagination also fixes the old single-page 100-product cap.
+  for await (const product of stripe.products.list({ limit: 100 })) {
+    if (
+      product.metadata?.project !== project ||
+      product.metadata?.managedBy !== 'stripe-module'
+    ) {
+      continue
+    }
 
-  for (const product of products.data) {
     const slug = product.metadata?.planSlug
     if (!slug) continue
 
