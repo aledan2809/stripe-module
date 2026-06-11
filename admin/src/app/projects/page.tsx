@@ -28,6 +28,8 @@ export default function ProjectsPage() {
   const [message, setMessage] = useState<{ type: string; text: string } | null>(null)
   const [saving, setSaving] = useState(false)
   const [brokerKeys, setBrokerKeys] = useState<{ apiKey: string; callbackSecret: string } | null>(null)
+  const [groupSel, setGroupSel] = useState<Record<string, { company: string; env: 'test' | 'live' }>>({})
+  const [assignedKeys, setAssignedKeys] = useState<{ ecosystem: string; rows: { projectSlug: string; apiKey: string; callbackSecret: string }[] } | null>(null)
 
   const load = async () => {
     const [projData, compData] = await Promise.all([
@@ -102,6 +104,23 @@ export default function ProjectsPage() {
     load()
   }
 
+  const assignEcosystem = async (groupName: string) => {
+    const sel = groupSel[groupName]
+    if (!sel?.company) { setMessage({ type: 'error', text: 'Alege o firmă pentru grup.' }); return }
+    setSaving(true)
+    const res = await fetch('/api/ecosystems/assign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ecosystem: groupName, brokerCompany: sel.company, brokerEnv: sel.env || 'test' }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSaving(false)
+    if (!res.ok) { setMessage({ type: 'error', text: data?.error || 'Asignare eșuată' }); return }
+    setAssignedKeys({ ecosystem: groupName, rows: data.assigned })
+    setMessage({ type: 'success', text: `${data.count} proiecte din „${groupName}" asignate la ${getCompanyName(sel.company)} — copiază cheile acum.` })
+    load()
+  }
+
   const getCompanyName = (slug: string) => companies.find(c => c.slug === slug)?.name || slug || '—'
 
   const configuredProjects = mappings.filter(m => m.subscriptionCompany || m.serviceCompany)
@@ -134,6 +153,33 @@ export default function ProjectsPage() {
         </div>
 
         {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
+
+        {/* Ecosystem assignment keys — shown once; one apiKey + callbackSecret per project */}
+        {assignedKeys && (
+          <div className="card" style={{ border: '1px solid #f59e0b66', background: 'rgba(245, 158, 11, 0.08)' }}>
+            <div className="card-header">
+              <div className="card-title" style={{ color: '#f59e0b' }}>🔑 Chei broker — „{assignedKeys.ecosystem}" ({assignedKeys.rows.length} proiecte) — copiază-le ACUM</div>
+              <button className="btn btn-secondary btn-sm" onClick={() => setAssignedKeys(null)}>Am copiat</button>
+            </div>
+            <p className="text-sm text-muted mb-4">Fiecare proiect are propria cheie. Trec în env-ul app-ului consumator respectiv. Nu se mai afișează după ce închizi.</p>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                <thead><tr style={{ textAlign: 'left', color: 'var(--text-muted)' }}>
+                  <th style={{ padding: 6 }}>Proiect</th><th style={{ padding: 6 }}>STRIPE_BROKER_PROJECT_KEY</th><th style={{ padding: 6 }}>STRIPE_BROKER_CALLBACK_SECRET</th>
+                </tr></thead>
+                <tbody>
+                  {assignedKeys.rows.map(r => (
+                    <tr key={r.projectSlug} style={{ borderTop: '1px solid var(--border)' }}>
+                      <td style={{ padding: 6, fontWeight: 600 }}>{r.projectSlug}</td>
+                      <td style={{ padding: 6 }}><input className="form-input mono" readOnly value={r.apiKey} onFocus={e => e.target.select()} style={{ fontSize: 11 }} /></td>
+                      <td style={{ padding: 6 }}><input className="form-input mono" readOnly value={r.callbackSecret} onFocus={e => e.target.select()} style={{ fontSize: 11 }} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Broker keys — shown once after generation; user copies them into the consumer app env */}
         {brokerKeys && (
@@ -257,10 +303,39 @@ export default function ProjectsPage() {
             <div className="alert alert-info">Adaugă mai întâi o firmă în pagina Firme.</div>
           ) : (
             <div className="flex flex-col gap-4">
-              {groups.map(group => (
+              {groups.map(group => {
+                const isDiscovered = group.name.startsWith('Alte proiecte')
+                const sel = groupSel[group.name] || { company: '', env: 'test' as const }
+                return (
                 <div key={group.name}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#a78bfa', marginBottom: 8 }}>
-                    {group.name} <span className="text-muted" style={{ fontWeight: 400 }}>({group.projects.length})</span>
+                  <div className="flex justify-between items-center" style={{ marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#a78bfa' }}>
+                      {group.name} <span className="text-muted" style={{ fontWeight: 400 }}>({group.projects.length})</span>
+                    </div>
+                    {/* Ecosystem-level assignment: map ALL projects in this group to one company */}
+                    {!isDiscovered && (
+                      <div className="flex gap-2 items-center">
+                        <select className="form-select" style={{ width: 200, padding: '4px 8px', fontSize: 12 }}
+                          value={sel.company}
+                          onChange={e => setGroupSel({ ...groupSel, [group.name]: { ...sel, company: e.target.value } })}>
+                          <option value="">— asignează grupul la firmă —</option>
+                          {companies.map(c => <option key={c.slug} value={c.slug}>{c.name}</option>)}
+                        </select>
+                        <div className="switch-container" style={{ transform: 'scale(0.85)' }}>
+                          <span className={sel.env !== 'live' ? 'text-yellow' : 'text-muted'} style={{ fontSize: 11, fontWeight: 600 }}>TEST</span>
+                          <label className="switch" style={{ width: 36, height: 20 }}>
+                            <input type="checkbox" checked={sel.env === 'live'}
+                              onChange={e => setGroupSel({ ...groupSel, [group.name]: { ...sel, env: e.target.checked ? 'live' : 'test' } })} />
+                            <span className="switch-slider" />
+                          </label>
+                          <span className={sel.env === 'live' ? 'text-green' : 'text-muted'} style={{ fontSize: 11, fontWeight: 600 }}>LIVE</span>
+                        </div>
+                        <button className="btn btn-primary btn-sm" disabled={saving || !sel.company}
+                          onClick={() => assignEcosystem(group.name)}>
+                          Asignează grupul
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
                     {group.projects.map(p => {
@@ -276,7 +351,7 @@ export default function ProjectsPage() {
                     })}
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           )}
         </div>
