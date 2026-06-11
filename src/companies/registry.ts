@@ -36,6 +36,19 @@ registerCompany({
   stripeEnvironment: 'test',
 })
 
+registerCompany({
+  slug: 'teinformez',
+  name: 'I-Phoenix CA',
+  cui: '',
+  address: '',
+  email: '',
+  currency: 'ron',
+  country: 'RO',
+  isVatPayer: false,
+  vatRate: 0,
+  stripeEnvironment: 'test',
+})
+
 // ─── Registry Functions ─────────────────────────────────────────────
 
 /**

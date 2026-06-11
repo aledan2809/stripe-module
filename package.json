@@ -10,11 +10,11 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "ai-router": "file:../AIRouter",
     "stripe": "^17.7.0",
     "zod": "^3.23.8"
   },
   "peerDependencies": {
+    "ai-router": "*",
     "@stripe/react-stripe-js": "^2.0.0 || ^3.0.0",
     "@stripe/stripe-js": "^4.0.0 || ^5.0.0",
     "next": "^14.0.0 || ^15.0.0",
