@@ -1,11 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 /**
+ * Public Checkout Broker endpoints — reachable from anywhere, they carry their own auth:
+ *   /api/checkout              → authenticated by X-Project-Key
+ *   /api/stripe/webhook/<slug> → authenticated by the per-company Stripe webhook signature
+ * Everything else is the admin surface (handles Stripe secret keys) and stays gated.
+ */
+function isPublicBrokerPath(pathname: string): boolean {
+  return pathname === '/api/checkout' || pathname.startsWith('/api/stripe/webhook/')
+}
+
+/**
  * G-STRIPE-001 guard: admin panel handles Stripe secret keys and has no user system.
  * Policy: requests must come from localhost. For remote/tunneled access, set
  * STRIPE_ADMIN_TOKEN in the environment and send it as the `x-admin-token` header.
  */
 export function middleware(request: NextRequest) {
+  if (isPublicBrokerPath(request.nextUrl.pathname)) {
+    return NextResponse.next()
+  }
+
   const adminToken = process.env.STRIPE_ADMIN_TOKEN
 
   if (adminToken && request.headers.get('x-admin-token') === adminToken) {

@@ -13,3 +13,6 @@ admin/node_modules/
 
 # npm pack artifact
 projects-stripe-module-*.tgz
+
+# broker runtime session store (contains callbackSecret)
+data/checkout-sessions.json

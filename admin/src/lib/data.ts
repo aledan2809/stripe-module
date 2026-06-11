@@ -75,6 +75,17 @@ export interface ProjectMapping {
   // Legacy compat
   companySlug?: string
   environment?: 'test' | 'live'
+  // ─── Checkout Broker API (consumer apps create checkouts without holding Stripe keys) ───
+  /** Per-project API key the consumer app sends as X-Project-Key */
+  apiKey?: string
+  /** HMAC secret used to sign broker→app callbacks */
+  callbackSecret?: string
+  /** Firma a cărei cheie Stripe o folosește brokerul pentru checkout-urile acestui proiect */
+  brokerCompany?: string
+  /** Mediul cheii folosite de broker pentru acest proiect */
+  brokerEnv?: 'test' | 'live'
+  /** Brokerul răspunde 503 dacă e dezactivat */
+  brokerEnabled?: boolean
 }
 
 // --- File helpers ---
@@ -187,8 +198,16 @@ export function removeProjectMapping(projectSlug: string): void {
 
 export function getProjectsForCompany(companySlug: string): ProjectMapping[] {
   return getProjectMappings().filter(m =>
-    m.subscriptionCompany === companySlug || m.serviceCompany === companySlug
+    m.subscriptionCompany === companySlug ||
+    m.serviceCompany === companySlug ||
+    m.brokerCompany === companySlug
   )
+}
+
+/** Resolve a project mapping by its broker API key (X-Project-Key). */
+export function findMappingByApiKey(apiKey: string): ProjectMapping | undefined {
+  if (!apiKey) return undefined
+  return getProjectMappings().find(m => m.apiKey === apiKey)
 }
 
 export function getAssignedProjects(): string[] {

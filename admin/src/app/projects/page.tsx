@@ -7,12 +7,15 @@ interface Mapping {
   projectSlug: string; projectPath: string
   subscriptionCompany: string; subscriptionEnv: 'test' | 'live'
   serviceCompany: string; serviceEnv: 'test' | 'live'
+  brokerCompany?: string; brokerEnv?: 'test' | 'live'; brokerEnabled?: boolean
+  apiKey?: string; callbackSecret?: string
 }
 interface Company { slug: string; name: string }
 
 const EMPTY_MAPPING: Omit<Mapping, 'projectSlug' | 'projectPath'> = {
   subscriptionCompany: '', subscriptionEnv: 'test',
   serviceCompany: '', serviceEnv: 'test',
+  brokerCompany: '', brokerEnv: 'test', brokerEnabled: true,
 }
 
 export default function ProjectsPage() {
@@ -22,6 +25,7 @@ export default function ProjectsPage() {
   const [editing, setEditing] = useState<Mapping | null>(null)
   const [message, setMessage] = useState<{ type: string; text: string } | null>(null)
   const [saving, setSaving] = useState(false)
+  const [brokerKeys, setBrokerKeys] = useState<{ apiKey: string; callbackSecret: string } | null>(null)
 
   const load = async () => {
     const [projData, compData] = await Promise.all([
@@ -45,14 +49,23 @@ export default function ProjectsPage() {
     setMessage(null)
   }
 
-  const saveMapping = async () => {
+  const saveMapping = async (regenerateBrokerKeys = false) => {
     if (!editing) return
     setSaving(true)
-    await fetch('/api/projects', {
+    const res = await fetch('/api/projects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(editing),
+      body: JSON.stringify({ ...editing, regenerateBrokerKeys }),
     })
+    const data = await res.json().catch(() => ({}))
+    if (data?.brokerKeys?.apiKey) {
+      // Surface the freshly generated keys once — the user copies them into the consumer app env.
+      setBrokerKeys(data.brokerKeys)
+      setMessage({ type: 'success', text: `Chei broker generate pentru ${editing.projectSlug} — copiază-le acum (nu se mai afișează).` })
+      setSaving(false)
+      load()
+      return
+    }
     setMessage({ type: 'success', text: `Configurare salvată pentru ${editing.projectSlug}` })
     setEditing(null)
     setSaving(false)
@@ -118,6 +131,27 @@ export default function ProjectsPage() {
         </div>
 
         {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
+
+        {/* Broker keys — shown once after generation; user copies them into the consumer app env */}
+        {brokerKeys && (
+          <div className="card" style={{ border: '1px solid #f59e0b66', background: 'rgba(245, 158, 11, 0.08)' }}>
+            <div className="card-header">
+              <div className="card-title" style={{ color: '#f59e0b' }}>🔑 Chei broker generate — copiază-le ACUM</div>
+              <button className="btn btn-secondary btn-sm" onClick={() => { setBrokerKeys(null); setEditing(null) }}>Am copiat</button>
+            </div>
+            <p className="text-sm text-muted mb-4">
+              Trec în env-ul app-ului consumator. Nu se mai afișează după ce închizi.
+            </p>
+            <div className="form-group full">
+              <label className="form-label">X-Project-Key (<code>STRIPE_BROKER_PROJECT_KEY</code>)</label>
+              <input className="form-input mono" readOnly value={brokerKeys.apiKey} onFocus={e => e.target.select()} />
+            </div>
+            <div className="form-group full">
+              <label className="form-label">Callback Secret (<code>STRIPE_BROKER_CALLBACK_SECRET</code>)</label>
+              <input className="form-input mono" readOnly value={brokerKeys.callbackSecret} onFocus={e => e.target.select()} />
+            </div>
+          </div>
+        )}
 
         {/* Configured projects */}
         {configuredProjects.length > 0 && (
@@ -325,9 +359,57 @@ export default function ProjectsPage() {
                 )}
               </div>
 
+              {/* Broker config — consumer app creates checkouts without holding Stripe keys */}
+              <div style={{
+                border: '1px solid #f59e0b33', borderRadius: 10, padding: 16, marginBottom: 16,
+                background: 'rgba(245, 158, 11, 0.05)',
+              }}>
+                <div className="flex items-center gap-2 mb-4">
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b' }} />
+                  <span style={{ fontSize: 15, fontWeight: 600, color: '#f59e0b' }}>Checkout Broker</span>
+                </div>
+                <p className="text-sm text-muted mb-4">
+                  App-ul consumator creează checkout-uri prin broker (POST <code>/api/checkout</code>) cu un <strong>project-key</strong>,
+                  fără să dețină vreo cheie Stripe. Cheia firmei alese aici rămâne DOAR în broker.
+                </p>
+                <div className="form-group">
+                  <label className="form-label">Firma a cărei cheie Stripe o folosește brokerul</label>
+                  <select className="form-select" value={editing.brokerCompany || ''}
+                    onChange={e => setEditing({ ...editing, brokerCompany: e.target.value })}>
+                    <option value="">— Fără broker —</option>
+                    {companies.map(c => (
+                      <option key={c.slug} value={c.slug}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                {editing.brokerCompany && (
+                  <div className="form-group mt-4">
+                    <label className="form-label">Mediu broker</label>
+                    <div className="switch-container">
+                      <span className={editing.brokerEnv !== 'live' ? 'text-yellow' : 'text-muted'} style={{ fontSize: 13, fontWeight: 600 }}>TEST</span>
+                      <label className="switch">
+                        <input type="checkbox" checked={editing.brokerEnv === 'live'}
+                          onChange={e => setEditing({ ...editing, brokerEnv: e.target.checked ? 'live' : 'test' })} />
+                        <span className="switch-slider" />
+                      </label>
+                      <span className={editing.brokerEnv === 'live' ? 'text-green' : 'text-muted'} style={{ fontSize: 13, fontWeight: 600 }}>LIVE</span>
+                    </div>
+                    {editing.apiKey && (
+                      <div className="mt-4">
+                        <span className="text-sm text-muted">Project-key activ: <code>{editing.apiKey.substring(0, 16)}…</code> · callback-secret setat.</span>
+                        <button className="btn btn-secondary btn-sm" style={{ marginLeft: 8 }}
+                          onClick={() => { if (confirm('Regenerezi cheile broker? Cele vechi (din env-ul app-ului consumator) nu mai funcționează.')) saveMapping(true) }}>
+                          ↻ Regenerează chei
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="flex gap-3" style={{ justifyContent: 'flex-end' }}>
                 <button className="btn btn-secondary" onClick={() => setEditing(null)}>Anulează</button>
-                <button className="btn btn-primary" onClick={saveMapping} disabled={saving || (!editing.subscriptionCompany && !editing.serviceCompany)}>
+                <button className="btn btn-primary" onClick={() => saveMapping(false)} disabled={saving || (!editing.subscriptionCompany && !editing.serviceCompany && !editing.brokerCompany)}>
                   {saving ? 'Se salvează...' : '✓ Salvează configurarea'}
                 </button>
               </div>

@@ -34,5 +34,23 @@
     "stripeEnvironment": "test",
     "website": "",
     "logoUrl": ""
+  },
+  {
+    "slug": "class-rda",
+    "name": "Class RDA Impex SRL",
+    "cui": "",
+    "registrationNumber": "",
+    "address": "",
+    "email": "",
+    "phone": "",
+    "bank": "",
+    "iban": "",
+    "isVatPayer": true,
+    "vatRate": 0.19,
+    "currency": "ron",
+    "country": "RO",
+    "stripeEnvironment": "test",
+    "website": "",
+    "logoUrl": ""
   }
 ]
