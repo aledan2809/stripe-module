@@ -1,8 +1,16 @@
 # Stripe Checkout Broker — Contract (pentru app-uri consumatoare)
 
-> Brokerul rulează în `admin/` (deploy planificat: **stripe.knowbest.ro**). Cheile Stripe stau
-> DOAR aici. App-urile consumatoare (primul = **AVE**, app.techbiz.ae) dețin doar un
-> **project-key** + un **callback-secret**, generate din panoul admin la maparea proiectului.
+> Brokerul e **UNIVERSAL / multi-tenant** — funcționează pentru ORICE `projectSlug`, fiecare cu
+> maparea lui proiect→firmă. Nu e nimic AVE-specific în cod (cheia e pe `projectSlug` + `apiKey`).
+> Rulează în `admin/` (deploy planificat: **stripe.knowbest.ro**). Cheile Stripe stau DOAR aici;
+> app-urile consumatoare dețin doar un **project-key** + un **callback-secret**, generate din panoul
+> admin la maparea proiectului.
+>
+> **AVE (app.techbiz.ae) = primul pilot** care testează contractul. Restul (Tutor, knowbest, BlocHub,
+> utilajhub, PRO, eCabinet, Offer...) se vor putea conecta la fel — dar **migrarea lor e fazată,
+> sesiune dedicată per proiect**; NO-TOUCH CRITIC (BlocHub plăți, PRO, eCabinet) doar cu
+> propose-confirm-apply. Brokerul în sine nu presupune niciun consumator anume.
+>
 > Construit 2026-06-11. E2E verificat: 11/11 (succeeded/failed/expired + idempotency + 401/400/503).
 
 ## Arhitectură
@@ -35,7 +43,7 @@ Brokerul verifică semnătura pe **raw body** cu webhook-secret-ul firmei (înce
 Evenimente: `checkout.session.completed` (doar `payment_status='paid'`), `checkout.session.expired`, `payment_intent.payment_failed`.
 Idempotent (Stripe livrează de 2×). Pe eșec de callback → **500** ca Stripe să reîncerce (durable retry).
 
-## 3) POST <callbackUrl>  (broker → consumer)  ⚠️ AVE implementează ASTA
+## 3) POST <callbackUrl>  (broker → consumer)  ⚠️ orice app consumator implementează ASTA (AVE prima)
 **Headers:** `X-Broker-Signature: hex(hmacSHA256(rawBody, callbackSecret))`
 **Body:**
 ```jsonc
@@ -50,12 +58,12 @@ Idempotent (Stripe livrează de 2×). Pe eșec de callback → **500** ca Stripe
   "stripePaymentIntentId": "pi_..." | null
 }
 ```
-**AVE TREBUIE:**
+**Consumatorul TREBUIE (la fel pentru oricine, AVE inclus):**
 1. Recalculează `hex(hmacSHA256(rawBody, STRIPE_BROKER_CALLBACK_SECRET))` și compară cu `X-Broker-Signature` (timing-safe). Respinge dacă nu se potrivește.
 2. **Dedupe pe `sessionId`** — la duplicate strict-concurente brokerul poate trimite callback-ul de 2× (lost-update pe file-store). Procesează o singură dată per sessionId.
 3. Răspunde **2xx** rapid; orice non-2xx declanșează retry (broker + Stripe).
 
-## Env pe AVE
+## Env pe app-ul consumator (orice proiect)
 ```
 STRIPE_BROKER_URL=https://stripe.knowbest.ro
 STRIPE_BROKER_PROJECT_KEY=pk_proj_...      # X-Project-Key
