@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { projectSlug, lineItems, currency, successUrl, cancelUrl, callbackUrl, metadata } = body || {}
+  const { projectSlug, lineItems, currency, successUrl, cancelUrl, callbackUrl, metadata, customerEmail } = body || {}
 
   if (projectSlug && projectSlug !== mapping.projectSlug) {
     return NextResponse.json({ error: 'projectSlug does not match the project key' }, { status: 401 })
@@ -110,6 +110,11 @@ export async function POST(request: NextRequest) {
       })),
       success_url: successUrl,
       cancel_url: cancelUrl,
+      // Optional consumer-supplied email — prefills Stripe Checkout so the
+      // buyer isn't asked for an email they already typed in the consumer app.
+      ...(typeof customerEmail === 'string' && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(customerEmail) && customerEmail.length <= 254
+        ? { customer_email: customerEmail }
+        : {}),
       metadata: stripeMetadata,
       payment_intent_data: { metadata: stripeMetadata },
     })
