@@ -40,6 +40,10 @@ export interface CompanyProfile {
   stripeEnvironment: 'test' | 'live'
   website: string
   logoUrl: string
+  // Legal sync provenance (optional — set when the company is mirrored from the Legal hub)
+  source?: 'legal' | 'manual'
+  legalEntityId?: string
+  legalSyncedAt?: string
 }
 
 export interface StripeKeys {
