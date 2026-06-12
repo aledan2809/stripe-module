@@ -175,7 +175,7 @@ export function computeReconciliation(
       name: le?.legalName || sc?.name || slug,
       inLegal: !!le,
       inStripe: !!sc,
-      source: (sc as CompanyProfile & { source?: string } | undefined)?.source,
+      source: sc?.source,
       fields,
       flags,
     })
