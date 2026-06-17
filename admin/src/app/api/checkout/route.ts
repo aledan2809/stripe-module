@@ -7,6 +7,7 @@ import {
   toStripeAmount,
   type CheckoutSessionRecord,
 } from '@/lib/broker'
+import { createInvoiceCustomer, ensureTaxRate } from '@/lib/invoicing'
 
 /**
  * POST /api/checkout — Checkout Broker entry point.
@@ -95,6 +96,19 @@ export async function POST(request: NextRequest) {
   const stripeMetadata: Record<string, string> = { broker_ref: brokerRef, project_slug: mapping.projectSlug }
 
   try {
+    // Invoicing (opt-in via body.invoicing): create a Stripe Customer (+ a
+    // best-effort tax id) and a reusable VAT rate, so the session issues + emails
+    // a PDF tax invoice. Backward-compatible — skipped entirely when not requested.
+    const wantsInvoice = body?.invoicing === true
+    let invoiceCustomerId: string | undefined
+    let taxRateId: string | undefined
+    if (wantsInvoice) {
+      invoiceCustomerId = await createInvoiceCustomer(stripe, body.customer || {}, body.taxId || null)
+      if (body.vat && typeof body.vat.rate === 'number') {
+        taxRateId = await ensureTaxRate(stripe, companySlug, env, body.vat)
+      }
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       line_items: lineItems.map((item: any) => ({
@@ -107,13 +121,19 @@ export async function POST(request: NextRequest) {
           unit_amount: toStripeAmount(item.amount),
         },
         quantity: item.quantity || 1,
+        ...(taxRateId ? { tax_rates: [taxRateId] } : {}),
       })),
       success_url: successUrl,
       cancel_url: cancelUrl,
-      // Optional consumer-supplied email — prefills Stripe Checkout so the
-      // buyer isn't asked for an email they already typed in the consumer app.
-      ...(typeof customerEmail === 'string' && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(customerEmail) && customerEmail.length <= 254
-        ? { customer_email: customerEmail }
+      // A Customer (invoicing) and customer_email are mutually exclusive: when we
+      // created a Customer above use it, else keep the optional email prefill.
+      ...(invoiceCustomerId
+        ? { customer: invoiceCustomerId }
+        : typeof customerEmail === 'string' && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(customerEmail) && customerEmail.length <= 254
+          ? { customer_email: customerEmail }
+          : {}),
+      ...(wantsInvoice
+        ? { invoice_creation: { enabled: true, invoice_data: { footer: body?.vat?.note || undefined, metadata: stripeMetadata } } }
         : {}),
       metadata: stripeMetadata,
       payment_intent_data: { metadata: stripeMetadata },

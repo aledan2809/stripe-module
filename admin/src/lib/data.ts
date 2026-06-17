@@ -176,6 +176,21 @@ export function saveCredentials(companySlug: string, credentials: CompanyCredent
   saveAllCredentials(all)
 }
 
+// --- Tax rate cache (invoicing) ---
+// Stripe TaxRate objects are reusable; cache the id per (company, env, rate code)
+// so we create each rate once instead of on every invoiced checkout.
+
+export function getCachedTaxRate(key: string): string | undefined {
+  const data = readJson<{ rates: Record<string, string> }>('tax-rates.json', { rates: {} })
+  return data.rates?.[key]
+}
+
+export function cacheTaxRate(key: string, taxRateId: string): void {
+  const data = readJson<{ rates: Record<string, string> }>('tax-rates.json', { rates: {} })
+  data.rates = { ...(data.rates || {}), [key]: taxRateId }
+  writeJson('tax-rates.json', data)
+}
+
 // --- Project Mappings ---
 
 export function getProjectMappings(): ProjectMapping[] {
