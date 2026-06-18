@@ -41,6 +41,11 @@ export interface InvoiceTaxId {
  * id. Inclusive rate (consumer prices include VAT). 0% is a valid rate for the
  * zero-rated export line.
  */
+// In-process single-flight per cache key: concurrent first-time checkouts for the
+// same (company,env,code) share ONE creation instead of racing to create
+// duplicate Stripe TaxRate objects + clobbering the JSON cache.
+const inflightRates = new Map<string, Promise<string>>()
+
 export async function ensureTaxRate(
   stripe: Stripe,
   companySlug: string,
@@ -50,15 +55,43 @@ export async function ensureTaxRate(
   const key = `${companySlug}:${env}:${vat.code}`
   const cached = getCachedTaxRate(key)
   if (cached) return cached
-  const rate = await stripe.taxRates.create({
-    display_name: vat.code === 'AE_ZERO_EXPORT' ? 'VAT (export, zero-rated)' : 'VAT',
-    description: vat.note || undefined,
-    percentage: Number((vat.rate * 100).toFixed(4)),
-    inclusive: true,
-    country: 'AE',
-  })
-  cacheTaxRate(key, rate.id)
-  return rate.id
+  const existing = inflightRates.get(key)
+  if (existing) return existing
+
+  const display = vat.code === 'AE_ZERO_EXPORT' ? 'VAT (export, zero-rated)' : 'VAT'
+  const pct = Number((vat.rate * 100).toFixed(4))
+
+  const work = (async (): Promise<string> => {
+    // Re-check the cache in case a sibling call just wrote it.
+    const c2 = getCachedTaxRate(key)
+    if (c2) return c2
+    // Reuse a matching active rate if one already exists on the account — survives
+    // a lost cache (restart / fresh data dir) without creating duplicates.
+    try {
+      const list = await stripe.taxRates.list({ active: true, limit: 100 })
+      const match = list.data.find(
+        (r) => r.display_name === display && r.percentage === pct && r.inclusive === true && r.country === 'AE',
+      )
+      if (match) {
+        cacheTaxRate(key, match.id)
+        return match.id
+      }
+    } catch {
+      // list failed — fall through to create
+    }
+    const rate = await stripe.taxRates.create({
+      display_name: display,
+      description: vat.note || undefined,
+      percentage: pct,
+      inclusive: true,
+      country: 'AE',
+    })
+    cacheTaxRate(key, rate.id)
+    return rate.id
+  })().finally(() => inflightRates.delete(key))
+
+  inflightRates.set(key, work)
+  return work
 }
 
 /**
@@ -71,9 +104,15 @@ export async function createInvoiceCustomer(
   customer: InvoiceCustomerInput,
   taxId: InvoiceTaxId | null | undefined,
 ): Promise<string> {
-  const address = customer.country
+  // Only put an address on the Customer when country is a valid ISO-3166 alpha-2.
+  // A non-ISO value (e.g. "UK" from a future consumer) would make Stripe reject the
+  // create and abort the whole sale — degrade to "no address" instead of failing.
+  const iso = typeof customer.country === 'string' && /^[A-Za-z]{2}$/.test(customer.country.trim())
+    ? customer.country.trim().toUpperCase()
+    : undefined
+  const address = iso
     ? {
-        country: customer.country,
+        country: iso,
         ...(customer.addressLine ? { line1: customer.addressLine } : {}),
         ...(customer.city ? { city: customer.city } : {}),
       }

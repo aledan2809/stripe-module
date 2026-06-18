@@ -103,6 +103,11 @@ export async function POST(request: NextRequest) {
     let invoiceCustomerId: string | undefined
     let taxRateId: string | undefined
     if (wantsInvoice) {
+      // Guard the consumer-supplied VAT rate before it reaches Stripe — a rate
+      // outside [0,1] would make taxRates.create throw and abort the sale.
+      if (body.vat && typeof body.vat.rate === 'number' && (body.vat.rate < 0 || body.vat.rate > 1)) {
+        return NextResponse.json({ error: 'vat.rate must be between 0 and 1' }, { status: 400 })
+      }
       invoiceCustomerId = await createInvoiceCustomer(stripe, body.customer || {}, body.taxId || null)
       if (body.vat && typeof body.vat.rate === 'number') {
         taxRateId = await ensureTaxRate(stripe, companySlug, env, body.vat)
