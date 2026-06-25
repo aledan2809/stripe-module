@@ -31,6 +31,7 @@ export default function ProjectsPage() {
   const [groupSel, setGroupSel] = useState<Record<string, { company: string; env: 'test' | 'live' }>>({})
   const [assignedKeys, setAssignedKeys] = useState<{ ecosystem: string; rows: { projectSlug: string; apiKey: string; callbackSecret: string }[] } | null>(null)
   const [assignMode, setAssignMode] = useState<'group' | 'project'>('project')
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
   const load = async () => {
     const [projData, compData] = await Promise.all([
@@ -63,6 +64,8 @@ export default function ProjectsPage() {
       projectPath: project.path,
       ...EMPTY_MAPPING,
     })
+    // Auto-expand the advanced (subscription/service) section only when it actually holds data.
+    setShowAdvanced(!!(existing?.subscriptionCompany || existing?.serviceCompany))
     setMessage(null)
   }
 
@@ -259,7 +262,7 @@ export default function ProjectsPage() {
                       <div className="text-sm text-muted">{m.projectPath}</div>
                     </div>
                     <div className="flex gap-2">
-                      <button className="btn btn-secondary btn-sm" onClick={() => setEditing({ ...m })}>Editează</button>
+                      <button className="btn btn-secondary btn-sm" onClick={() => { setEditing({ ...m }); setShowAdvanced(!!(m.subscriptionCompany || m.serviceCompany)) }}>Editează</button>
                       <button className="btn btn-danger btn-sm" onClick={() => removeMapping(m.projectSlug)}>Elimină</button>
                     </div>
                   </div>
@@ -430,6 +433,60 @@ export default function ProjectsPage() {
             <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 600 }}>
               <div className="modal-title">Configurare Stripe: {editing.projectSlug}</div>
 
+              {/* Checkout Broker — the field most projects actually use; shown FIRST so the saved state is obvious */}
+              <div style={{
+                border: '1px solid #f59e0b33', borderRadius: 10, padding: 16, marginBottom: 16,
+                background: 'rgba(245, 158, 11, 0.05)',
+              }}>
+                <div className="flex items-center gap-2 mb-4">
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b' }} />
+                  <span style={{ fontSize: 15, fontWeight: 600, color: '#f59e0b' }}>Checkout Broker</span>
+                </div>
+                <p className="text-sm text-muted mb-4">
+                  App-ul consumator creează checkout-uri prin broker (POST <code>/api/checkout</code>) cu un <strong>project-key</strong>,
+                  fără să dețină vreo cheie Stripe. Cheia firmei alese aici rămâne DOAR în broker.
+                </p>
+                <div className="form-group">
+                  <label className="form-label">Firma a cărei cheie Stripe o folosește brokerul</label>
+                  <select className="form-select" value={editing.brokerCompany || ''}
+                    onChange={e => setEditing({ ...editing, brokerCompany: e.target.value })}>
+                    <option value="">— Fără broker —</option>
+                    {companies.map(c => (
+                      <option key={c.slug} value={c.slug}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                {editing.brokerCompany && (
+                  <div className="form-group mt-4">
+                    <label className="form-label">Mediu broker</label>
+                    <div className="switch-container">
+                      <span className={editing.brokerEnv !== 'live' ? 'text-yellow' : 'text-muted'} style={{ fontSize: 13, fontWeight: 600 }}>TEST</span>
+                      <label className="switch">
+                        <input type="checkbox" checked={editing.brokerEnv === 'live'}
+                          onChange={e => setEditing({ ...editing, brokerEnv: e.target.checked ? 'live' : 'test' })} />
+                        <span className="switch-slider" />
+                      </label>
+                      <span className={editing.brokerEnv === 'live' ? 'text-green' : 'text-muted'} style={{ fontSize: 13, fontWeight: 600 }}>LIVE</span>
+                    </div>
+                    {editing.apiKey && (
+                      <div className="mt-4">
+                        <span className="text-sm text-muted">Project-key activ: <code>{editing.apiKey.substring(0, 16)}…</code> · callback-secret setat.</span>
+                        <button className="btn btn-secondary btn-sm" style={{ marginLeft: 8 }}
+                          onClick={() => { if (confirm('Regenerezi cheile broker? Cele vechi (din env-ul app-ului consumator) nu mai funcționează.')) saveMapping(true) }}>
+                          ↻ Regenerează chei
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Advanced / optional — separate subscription + service billing. Collapsed by default to avoid the "looks empty" confusion. */}
+              <button type="button" className="btn btn-secondary btn-sm" style={{ marginBottom: 12 }}
+                onClick={() => setShowAdvanced(v => !v)}>
+                {showAdvanced ? '▾' : '▸'} Avansat — abonament SaaS + plăți servicii (opțional)
+              </button>
+              {showAdvanced && (<>
               {/* Subscription config */}
               <div style={{
                 border: '1px solid #7c3aed33', borderRadius: 10, padding: 16, marginBottom: 16,
@@ -506,54 +563,7 @@ export default function ProjectsPage() {
                   </div>
                 )}
               </div>
-
-              {/* Broker config — consumer app creates checkouts without holding Stripe keys */}
-              <div style={{
-                border: '1px solid #f59e0b33', borderRadius: 10, padding: 16, marginBottom: 16,
-                background: 'rgba(245, 158, 11, 0.05)',
-              }}>
-                <div className="flex items-center gap-2 mb-4">
-                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b' }} />
-                  <span style={{ fontSize: 15, fontWeight: 600, color: '#f59e0b' }}>Checkout Broker</span>
-                </div>
-                <p className="text-sm text-muted mb-4">
-                  App-ul consumator creează checkout-uri prin broker (POST <code>/api/checkout</code>) cu un <strong>project-key</strong>,
-                  fără să dețină vreo cheie Stripe. Cheia firmei alese aici rămâne DOAR în broker.
-                </p>
-                <div className="form-group">
-                  <label className="form-label">Firma a cărei cheie Stripe o folosește brokerul</label>
-                  <select className="form-select" value={editing.brokerCompany || ''}
-                    onChange={e => setEditing({ ...editing, brokerCompany: e.target.value })}>
-                    <option value="">— Fără broker —</option>
-                    {companies.map(c => (
-                      <option key={c.slug} value={c.slug}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-                {editing.brokerCompany && (
-                  <div className="form-group mt-4">
-                    <label className="form-label">Mediu broker</label>
-                    <div className="switch-container">
-                      <span className={editing.brokerEnv !== 'live' ? 'text-yellow' : 'text-muted'} style={{ fontSize: 13, fontWeight: 600 }}>TEST</span>
-                      <label className="switch">
-                        <input type="checkbox" checked={editing.brokerEnv === 'live'}
-                          onChange={e => setEditing({ ...editing, brokerEnv: e.target.checked ? 'live' : 'test' })} />
-                        <span className="switch-slider" />
-                      </label>
-                      <span className={editing.brokerEnv === 'live' ? 'text-green' : 'text-muted'} style={{ fontSize: 13, fontWeight: 600 }}>LIVE</span>
-                    </div>
-                    {editing.apiKey && (
-                      <div className="mt-4">
-                        <span className="text-sm text-muted">Project-key activ: <code>{editing.apiKey.substring(0, 16)}…</code> · callback-secret setat.</span>
-                        <button className="btn btn-secondary btn-sm" style={{ marginLeft: 8 }}
-                          onClick={() => { if (confirm('Regenerezi cheile broker? Cele vechi (din env-ul app-ului consumator) nu mai funcționează.')) saveMapping(true) }}>
-                          ↻ Regenerează chei
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+              </>)}
 
               <div className="flex gap-3" style={{ justifyContent: 'flex-end' }}>
                 <button className="btn btn-secondary" onClick={() => setEditing(null)}>Anulează</button>
