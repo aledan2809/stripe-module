@@ -30,6 +30,7 @@ export default function ProjectsPage() {
   const [brokerKeys, setBrokerKeys] = useState<{ apiKey: string; callbackSecret: string } | null>(null)
   const [groupSel, setGroupSel] = useState<Record<string, { company: string; env: 'test' | 'live' }>>({})
   const [assignedKeys, setAssignedKeys] = useState<{ ecosystem: string; rows: { projectSlug: string; apiKey: string; callbackSecret: string }[] } | null>(null)
+  const [assignMode, setAssignMode] = useState<'group' | 'project'>('project')
 
   const load = async () => {
     const [projData, compData] = await Promise.all([
@@ -71,7 +72,10 @@ export default function ProjectsPage() {
       load()
       return
     }
-    setMessage({ type: 'success', text: `Configurare salvată pentru ${editing.projectSlug}` })
+    const a = brokerAssignment(editing)
+    setMessage({ type: 'success', text: a
+      ? `✓ ${editing.projectSlug} asignat la ${a.firmName} (${a.env.toUpperCase()}). Confirmarea rămâne în „Proiecte configurate" + sub grup.`
+      : `Configurare salvată pentru ${editing.projectSlug}` })
     setEditing(null)
     setSaving(false)
     load()
@@ -107,6 +111,12 @@ export default function ProjectsPage() {
   const assignEcosystem = async (groupName: string) => {
     const sel = groupSel[groupName]
     if (!sel?.company) { setMessage({ type: 'error', text: 'Alege o firmă pentru grup.' }); return }
+    const grp = groups.find(g => g.name === groupName)
+    const count = grp?.projects.length || 0
+    if (!confirm(
+      `Asignezi TOATE cele ${count} proiecte din „${groupName}" la firma ${getCompanyName(sel.company)} (${(sel.env || 'test').toUpperCase()})?\n\n` +
+      `Dacă un proiect nu se potrivește (ex: Tutor ≠ Offer), folosește modul „Pe proiect" și asignează individual.`
+    )) return
     setSaving(true)
     const res = await fetch('/api/ecosystems/assign', {
       method: 'POST',
@@ -117,14 +127,24 @@ export default function ProjectsPage() {
     setSaving(false)
     if (!res.ok) { setMessage({ type: 'error', text: data?.error || 'Asignare eșuată' }); return }
     setAssignedKeys({ ecosystem: groupName, rows: data.assigned })
-    setMessage({ type: 'success', text: `${data.count} proiecte din „${groupName}" asignate la ${getCompanyName(sel.company)} — copiază cheile acum.` })
+    setMessage({ type: 'success', text: `✓ ${data.count} proiecte din „${groupName}" asignate la ${getCompanyName(sel.company)} (${(sel.env || 'test').toUpperCase()}). Confirmarea apare sub fiecare grup + copiază cheile acum.` })
     load()
   }
 
   const getCompanyName = (slug: string) => companies.find(c => c.slug === slug)?.name || slug || '—'
+  const mappingFor = (slug: string) => mappings.find(m => m.projectSlug === slug)
+  // Single source of truth shown inline so the user can SEE the association persisted.
+  const brokerAssignment = (m?: Mapping) => {
+    if (!m) return null
+    if (m.brokerCompany) return { firmName: getCompanyName(m.brokerCompany), env: (m.brokerEnv || 'test'), kind: 'broker' as const }
+    if (m.subscriptionCompany) return { firmName: getCompanyName(m.subscriptionCompany), env: m.subscriptionEnv, kind: 'abonament' as const }
+    if (m.serviceCompany) return { firmName: getCompanyName(m.serviceCompany), env: m.serviceEnv, kind: 'servicii' as const }
+    return null
+  }
 
   const configuredProjects = mappings.filter(m => m.subscriptionCompany || m.serviceCompany)
-  const configuredSlugs = configuredProjects.map(m => m.projectSlug)
+  // Chips turn green on ANY assignment (incl. broker-only — the go-live path), so the ✓ reliably confirms it stuck.
+  const assignedSlugs = mappings.filter(m => m.brokerCompany || m.subscriptionCompany || m.serviceCompany).map(m => m.projectSlug)
 
   return (
     <>
@@ -294,8 +314,19 @@ export default function ProjectsPage() {
         <div className="card">
           <div className="card-header">
             <div>
-              <div className="card-title">Adaugă proiect</div>
-              <div className="card-subtitle">Proiectele sunt grupate pe ecosisteme. Click pe un proiect pentru a-l configura.</div>
+              <div className="card-title">Adaugă / asignează proiect</div>
+              <div className="card-subtitle">
+                {assignMode === 'group'
+                  ? 'Mod GRUP — asignezi tot ecosistemul la o firmă deodată (atenție: bagă și proiecte nepotrivite).'
+                  : 'Mod PROIECT — click pe un proiect ca să-l asignezi individual la o firmă.'}
+              </div>
+            </div>
+            <div className="flex gap-2 items-center">
+              <span className="text-sm text-muted">Asignare:</span>
+              <button className={`btn btn-sm ${assignMode === 'project' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setAssignMode('project')}>Pe proiect</button>
+              <button className={`btn btn-sm ${assignMode === 'group' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setAssignMode('group')}>Pe grup</button>
             </div>
           </div>
 
@@ -313,7 +344,7 @@ export default function ProjectsPage() {
                       {group.name} <span className="text-muted" style={{ fontWeight: 400 }}>({group.projects.length})</span>
                     </div>
                     {/* Ecosystem-level assignment: map ALL projects in this group to one company */}
-                    {!isDiscovered && (
+                    {assignMode === 'group' && !isDiscovered && (
                       <div className="flex gap-2 items-center">
                         <select className="form-select" style={{ width: 200, padding: '4px 8px', fontSize: 12 }}
                           value={sel.company}
@@ -339,17 +370,40 @@ export default function ProjectsPage() {
                   </div>
                   <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
                     {group.projects.map(p => {
-                      const isConfigured = configuredSlugs.includes(p.slug)
+                      const isConfigured = assignedSlugs.includes(p.slug)
+                      const a = brokerAssignment(mappingFor(p.slug))
                       return (
                         <button key={p.slug}
                           className={`btn btn-sm ${isConfigured ? 'btn-success' : 'btn-secondary'}`}
-                          title={p.path || 'nedescoperit pe acest host'}
+                          title={a ? `${a.firmName} (${a.env.toUpperCase()}) · ${p.path}` : (p.path || 'nedescoperit pe acest host')}
                           onClick={() => openConfig(p)}>
                           {p.slug}{isConfigured ? ' ✓' : ''}
                         </button>
                       )
                     })}
                   </div>
+
+                  {/* Inline confirmation: which projects in THIS group are already mapped, and to which firm */}
+                  {(() => {
+                    const assigned = group.projects
+                      .map(p => ({ slug: p.slug, a: brokerAssignment(mappingFor(p.slug)) }))
+                      .filter(x => x.a)
+                    if (assigned.length === 0) return null
+                    return (
+                      <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed var(--border)', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {assigned.map(({ slug, a }) => (
+                          <div key={slug} style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <span style={{ color: '#34d399' }}>✓</span>
+                            <strong>{slug}</strong>
+                            <span className="text-muted">→</span>
+                            <span>{a!.firmName}</span>
+                            <span className={a!.env === 'live' ? 'text-green' : 'text-yellow'} style={{ fontWeight: 600 }}>({a!.env.toUpperCase()})</span>
+                            <span className="text-muted" style={{ fontSize: 11 }}>· {a!.kind}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })()}
                 </div>
               )})}
             </div>
