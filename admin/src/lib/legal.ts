@@ -147,7 +147,7 @@ export function computeReconciliation(
       fields.push(FIELD('name', derived!.name, sc.name))
       fields.push(FIELD('cui', derived!.cui, sc.cui || ''))
       fields.push(FIELD('address', derived!.address, sc.address || ''))
-      fields.push(FIELD('email', derived!.email, sc.email || ''))
+      // email is Stripe-local (billing email) ≠ Legal DPO email (GDPR) — excluded from reconciliation/drift
       fields.push(FIELD('country', derived!.country, sc.country || ''))
       fields.push(FIELD('currency', derived!.currency, sc.currency || ''))
       for (const f of fields) {
@@ -165,7 +165,6 @@ export function computeReconciliation(
       fields.push(FIELD('name', '', sc.name))
       fields.push(FIELD('cui', '', sc.cui || ''))
       fields.push(FIELD('address', '', sc.address || ''))
-      fields.push(FIELD('email', '', sc.email || ''))
       fields.push(FIELD('country', '', sc.country || ''))
       fields.push(FIELD('currency', '', sc.currency || ''))
     }

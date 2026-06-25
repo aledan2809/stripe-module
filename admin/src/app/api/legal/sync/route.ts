@@ -66,7 +66,8 @@ export async function POST(request: NextRequest) {
       name: d.name,
       cui: d.cui,
       address: d.address,
-      email: d.email,
+      // email is Stripe-local (billing email) — preserved; only seeded from Legal for a brand-new company (GDPR: billing ≠ DPO)
+      email: prev?.email ?? d.email,
       country: d.country,
       currency: d.currency,
       source: 'legal',
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
     // diff which Legal-driven fields change
     const changed: string[] = []
     if (prev) {
-      for (const k of ['name', 'cui', 'address', 'email', 'country', 'currency'] as const) {
+      for (const k of ['name', 'cui', 'address', 'country', 'currency'] as const) {
         if ((prev[k] || '') !== (merged[k] || '')) changed.push(k)
       }
       changes.push({ slug: e.slug, action: changed.length ? 'update' : 'unchanged', fields: changed })

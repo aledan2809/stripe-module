@@ -373,8 +373,8 @@ export default function CompaniesPage() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Email</label>
-                  <input className="form-input" value={editing.email} placeholder="contact@firma.ro"
+                  <label className="form-label">Email facturare</label>
+                  <input className="form-input" value={editing.email} placeholder="facturare@firma.ro"
                     onChange={e => setEditing({ ...editing, email: e.target.value })} />
                 </div>
 
