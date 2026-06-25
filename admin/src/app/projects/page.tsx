@@ -41,6 +41,17 @@ export default function ProjectsPage() {
     setGroups(projData.groups || [])
     setMappings(projData.mappings)
     setCompanies(compData)
+    // Pre-fill the group selector from the existing uniform broker assignment, so the
+    // "✓ Asignat" state is visible on load (not just right after clicking).
+    const gsel: Record<string, { company: string; env: 'test' | 'live' }> = {}
+    for (const g of (projData.groups || []) as EcoGroup[]) {
+      const slugs = g.projects.map((p: ProjectInfo) => p.slug)
+      const ms = (projData.mappings || []).filter((m: Mapping) => slugs.includes(m.projectSlug) && m.brokerCompany)
+      if (ms.length === g.projects.length && ms.length > 0 && ms.every((m: Mapping) => m.brokerCompany === ms[0].brokerCompany)) {
+        gsel[g.name] = { company: ms[0].brokerCompany as string, env: (ms[0].brokerEnv || 'test') }
+      }
+    }
+    setGroupSel(prev => ({ ...gsel, ...prev }))
   }
 
   useEffect(() => { load() }, [])
@@ -133,6 +144,9 @@ export default function ProjectsPage() {
 
   const getCompanyName = (slug: string) => companies.find(c => c.slug === slug)?.name || slug || '—'
   const mappingFor = (slug: string) => mappings.find(m => m.projectSlug === slug)
+  // Whole group is already mapped (broker) to `company` → button shows "✓ Asignat".
+  const groupFullyAssigned = (group: EcoGroup, company: string) =>
+    !!company && group.projects.length > 0 && group.projects.every(p => mappingFor(p.slug)?.brokerCompany === company)
   // Single source of truth shown inline so the user can SEE the association persisted.
   const brokerAssignment = (m?: Mapping) => {
     if (!m) return null
@@ -361,9 +375,9 @@ export default function ProjectsPage() {
                           </label>
                           <span className={sel.env === 'live' ? 'text-green' : 'text-muted'} style={{ fontSize: 11, fontWeight: 600 }}>LIVE</span>
                         </div>
-                        <button className="btn btn-primary btn-sm" disabled={saving || !sel.company}
+                        <button className={`btn btn-sm ${groupFullyAssigned(group, sel.company) ? 'btn-success' : 'btn-primary'}`} disabled={saving || !sel.company}
                           onClick={() => assignEcosystem(group.name)}>
-                          Asignează grupul
+                          {groupFullyAssigned(group, sel.company) ? '✓ Asignat — reasignează' : 'Asignează grupul'}
                         </button>
                       </div>
                     )}
