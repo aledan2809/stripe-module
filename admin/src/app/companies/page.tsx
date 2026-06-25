@@ -18,7 +18,7 @@ const EMPTY_KEYS: StripeKeys = { secretKey: '', publishableKey: '', webhookSecre
 const EMPTY_COMPANY: Company = {
   slug: '', name: '', cui: '', registrationNumber: '',
   address: '', email: '', phone: '', bank: '', iban: '',
-  isVatPayer: true, vatRate: 0.19, currency: 'ron', country: 'RO',
+  isVatPayer: true, vatRate: 0.21, currency: 'ron', country: 'RO',
   stripeEnvironment: 'test', website: '', logoUrl: '',
 }
 
@@ -412,10 +412,14 @@ export default function CompaniesPage() {
                   <select className="form-select" value={editing.country}
                     onChange={e => setEditing({ ...editing, country: e.target.value })}>
                     <option value="RO">România</option>
+                    <option value="AE">Emiratele Arabe Unite</option>
                     <option value="DE">Germania</option>
-                    <option value="US">SUA</option>
-                    <option value="GB">UK</option>
                     <option value="FR">Franța</option>
+                    <option value="IT">Italia</option>
+                    <option value="ES">Spania</option>
+                    <option value="NL">Olanda</option>
+                    <option value="GB">Marea Britanie</option>
+                    <option value="US">SUA</option>
                   </select>
                 </div>
 
@@ -436,9 +440,11 @@ export default function CompaniesPage() {
                     <label className="form-label">Cotă TVA</label>
                     <select className="form-select" value={editing.vatRate}
                       onChange={e => setEditing({ ...editing, vatRate: parseFloat(e.target.value) })}>
-                      <option value={0.19}>19%</option>
-                      <option value={0.09}>9%</option>
-                      <option value={0.05}>5%</option>
+                      <option value={0.21}>21% (standard RO)</option>
+                      <option value={0.11}>11% (redus RO)</option>
+                      <option value={0.05}>5% (UAE)</option>
+                      <option value={0.19}>19% (RO, vechi)</option>
+                      <option value={0.09}>9% (RO, vechi)</option>
                       <option value={0}>0%</option>
                     </select>
                   </div>
