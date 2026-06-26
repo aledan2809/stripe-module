@@ -8,8 +8,13 @@ export async function GET() {
   // when a single company's editor is opened.
   const enriched = companies.map(c => {
     const creds = getCredentials(c.slug)
+    // Defensively drop any `credentials` accidentally embedded in companies.json
+    // (legacy: the UI used to POST the whole company object incl. keys) so the
+    // list never re-emits Stripe secrets via spread.
+    const { credentials: _embedded, ...rest } = c as typeof c & { credentials?: unknown }
+    void _embedded
     return {
-      ...c,
+      ...rest,
       credentialsStatus: {
         test: { hasSecret: !!creds.test?.secretKey, hasWebhook: !!creds.test?.webhookSecret },
         live: { hasSecret: !!creds.live?.secretKey, hasWebhook: !!creds.live?.webhookSecret },
@@ -29,6 +34,10 @@ export async function POST(request: NextRequest) {
 
   // Sanitize slug
   body.slug = body.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-')
+
+  // Never persist Stripe secrets inside companies.json — they belong only in the
+  // (encrypted) credentials store. The UI saves credentials via /api/credentials.
+  delete body.credentials
 
   upsertCompany(body)
   return NextResponse.json({ ok: true, company: body })
