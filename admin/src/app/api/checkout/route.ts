@@ -71,6 +71,22 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Subscription vs one-time. Subscription mode needs a recurring interval per line item
+  // (item.interval, falling back to a top-level body.interval).
+  const mode: 'payment' | 'subscription' = body?.mode === 'subscription' ? 'subscription' : 'payment'
+  const VALID_INTERVALS = ['day', 'week', 'month', 'year']
+  if (mode === 'subscription') {
+    for (const item of lineItems) {
+      const interval = item.interval || body.interval
+      if (!VALID_INTERVALS.includes(interval)) {
+        return NextResponse.json(
+          { error: 'subscription mode: each lineItem needs interval (day|week|month|year)' },
+          { status: 400 }
+        )
+      }
+    }
+  }
+
   // Resolve the company whose Stripe key the broker uses for this project.
   const companySlug = mapping.brokerCompany
   const env = mapping.brokerEnv || 'test'
@@ -115,7 +131,7 @@ export async function POST(request: NextRequest) {
     }
 
     const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
+      mode,
       line_items: lineItems.map((item: any) => ({
         price_data: {
           currency,
@@ -124,6 +140,14 @@ export async function POST(request: NextRequest) {
             ...(item.description ? { description: String(item.description) } : {}),
           },
           unit_amount: toStripeAmount(item.amount),
+          ...(mode === 'subscription'
+            ? {
+                recurring: {
+                  interval: (item.interval || body.interval) as 'day' | 'week' | 'month' | 'year',
+                  interval_count: item.intervalCount || body.intervalCount || 1,
+                },
+              }
+            : {}),
         },
         quantity: item.quantity || 1,
         ...(taxRateId ? { tax_rates: [taxRateId] } : {}),
@@ -137,11 +161,15 @@ export async function POST(request: NextRequest) {
         : typeof customerEmail === 'string' && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(customerEmail) && customerEmail.length <= 254
           ? { customer_email: customerEmail }
           : {}),
-      ...(wantsInvoice
+      // invoice_creation is valid only for one-time payments; subscriptions auto-invoice.
+      ...(wantsInvoice && mode === 'payment'
         ? { invoice_creation: { enabled: true, invoice_data: { footer: body?.vat?.note || undefined, metadata: stripeMetadata } } }
         : {}),
       metadata: stripeMetadata,
-      payment_intent_data: { metadata: stripeMetadata },
+      // Carry broker_ref onto the right sub-object so PI failures / renewals map back here.
+      ...(mode === 'subscription'
+        ? { subscription_data: { metadata: stripeMetadata } }
+        : { payment_intent_data: { metadata: stripeMetadata } }),
     })
 
     const record: CheckoutSessionRecord = {
@@ -154,6 +182,7 @@ export async function POST(request: NextRequest) {
       callbackSecret: mapping.callbackSecret || '',
       metadata: echoMetadata,
       currency,
+      mode,
       status: 'created',
       createdAt: new Date().toISOString(),
       processedEventIds: [],

@@ -42,8 +42,12 @@ export interface CheckoutSessionRecord {
   /** Opaque consumer metadata — echoed back unchanged */
   metadata: Record<string, unknown>
   currency: string
-  status: 'created' | 'paid' | 'expired' | 'failed'
+  /** 'payment' (one-time, default) or 'subscription' */
+  mode?: 'payment' | 'subscription'
+  status: 'created' | 'paid' | 'expired' | 'failed' | 'active' | 'canceled' | 'past_due'
   paymentIntentId?: string
+  /** Set once the Stripe subscription exists (subscription mode) — maps renewal/cancel events back here */
+  subscriptionId?: string
   createdAt: string
   /** Stripe event ids already dispatched (idempotency) */
   processedEventIds: string[]
@@ -54,6 +58,10 @@ export type BrokerCallbackEvent =
   | 'payment.succeeded'
   | 'payment.expired'
   | 'payment.failed'
+  | 'subscription.activated'
+  | 'subscription.renewed'
+  | 'subscription.payment_failed'
+  | 'subscription.canceled'
 
 export interface BrokerCallbackPayload {
   event: BrokerCallbackEvent
@@ -65,6 +73,9 @@ export interface BrokerCallbackPayload {
   amountTotal: number | null
   currency: string
   stripePaymentIntentId: string | null
+  /** Set for subscription.* events */
+  stripeSubscriptionId?: string | null
+  subscriptionStatus?: string | null
 }
 
 // ─── Store (JSON file) ──────────────────────────────────────────────
@@ -101,6 +112,11 @@ export function getCheckoutSession(sessionId: string): CheckoutSessionRecord | u
 export function findSessionByBrokerRef(brokerRef: string): CheckoutSessionRecord | undefined {
   if (!brokerRef) return undefined
   return Object.values(readStore().sessions).find(s => s.brokerRef === brokerRef)
+}
+
+export function findSessionBySubscriptionId(subscriptionId: string): CheckoutSessionRecord | undefined {
+  if (!subscriptionId) return undefined
+  return Object.values(readStore().sessions).find(s => s.subscriptionId === subscriptionId)
 }
 
 /** Apply a patch to a stored record (re-reads to avoid clobbering concurrent webhook writes). */

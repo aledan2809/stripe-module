@@ -4,6 +4,7 @@ import { getCredentials } from '@/lib/data'
 import {
   getCheckoutSession,
   findSessionByBrokerRef,
+  findSessionBySubscriptionId,
   updateCheckoutSession,
   dispatchCallback,
   type CheckoutSessionRecord,
@@ -17,13 +18,32 @@ import {
  * Each company's Stripe webhook points here with its own companySlug so the broker
  * knows which webhook secret to verify against. The signature is checked on the RAW body.
  * Handled events:
- *   checkout.session.completed (only payment_status='paid') → payment.succeeded
- *   checkout.session.expired                                → payment.expired
- *   payment_intent.payment_failed                           → payment.failed
+ *   checkout.session.completed (payment, paid)       → payment.succeeded
+ *   checkout.session.completed (subscription)        → subscription.activated
+ *   checkout.session.expired                         → payment.expired
+ *   payment_intent.payment_failed                    → payment.failed
+ *   invoice.paid (renewal, not first invoice)        → subscription.renewed
+ *   invoice.payment_failed                           → subscription.payment_failed
+ *   customer.subscription.deleted                    → subscription.canceled
  *
  * Idempotent (Stripe delivers duplicates). On callback-dispatch failure we return 500 so
  * Stripe retries the webhook; the event id is only marked processed AFTER a successful dispatch.
  */
+
+/** Robustly read the subscription id off an Invoice across Stripe API versions. */
+function invoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
+  const inv = invoice as unknown as {
+    subscription?: string | { id?: string } | null
+    parent?: { subscription_details?: { subscription?: string | { id?: string } | null } }
+  }
+  if (typeof inv.subscription === 'string') return inv.subscription
+  if (inv.subscription && typeof inv.subscription === 'object' && inv.subscription.id) return inv.subscription.id
+  const nested = inv.parent?.subscription_details?.subscription
+  if (typeof nested === 'string') return nested
+  if (nested && typeof nested === 'object' && nested.id) return nested.id
+  return null
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ companySlug: string }> }
@@ -72,20 +92,33 @@ export async function POST(
   let amountTotal: number | null = null
   let currency = ''
   let paymentIntentId: string | null = null
+  let subscriptionId: string | null = null
+  let subscriptionStatus: string | null = null
   let newStatus: CheckoutSessionRecord['status'] | null = null
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session
-    if (session.payment_status !== 'paid') {
-      return NextResponse.json({ received: true, ignored: 'not paid' })
-    }
     record = getCheckoutSession(session.id) || findSessionByBrokerRef(session.metadata?.broker_ref || '')
-    callbackEvent = 'payment.succeeded'
-    paymentStatus = session.payment_status
-    amountTotal = session.amount_total
-    currency = session.currency || record?.currency || ''
-    paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : null
-    newStatus = 'paid'
+    if (session.mode === 'subscription') {
+      // Subscription checkout completed → a Stripe Subscription now exists.
+      subscriptionId = typeof session.subscription === 'string' ? session.subscription : null
+      callbackEvent = 'subscription.activated'
+      paymentStatus = session.payment_status || ''
+      amountTotal = session.amount_total
+      currency = session.currency || record?.currency || ''
+      subscriptionStatus = 'active'
+      newStatus = 'active'
+    } else {
+      if (session.payment_status !== 'paid') {
+        return NextResponse.json({ received: true, ignored: 'not paid' })
+      }
+      callbackEvent = 'payment.succeeded'
+      paymentStatus = session.payment_status
+      amountTotal = session.amount_total
+      currency = session.currency || record?.currency || ''
+      paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : null
+      newStatus = 'paid'
+    }
   } else if (event.type === 'checkout.session.expired') {
     const session = event.data.object as Stripe.Checkout.Session
     record = getCheckoutSession(session.id) || findSessionByBrokerRef(session.metadata?.broker_ref || '')
@@ -104,6 +137,41 @@ export async function POST(
     currency = pi.currency || record?.currency || ''
     paymentIntentId = pi.id
     newStatus = 'failed'
+  } else if (event.type === 'invoice.paid') {
+    const invoice = event.data.object as Stripe.Invoice
+    // Skip the first invoice (subscription creation) — activation already notified the consumer.
+    if (invoice.billing_reason === 'subscription_create') {
+      return NextResponse.json({ received: true, ignored: 'subscription_create invoice' })
+    }
+    const subId = invoiceSubscriptionId(invoice)
+    record = subId ? findSessionBySubscriptionId(subId) : undefined
+    callbackEvent = 'subscription.renewed'
+    paymentStatus = invoice.status || 'paid'
+    amountTotal = invoice.amount_paid
+    currency = invoice.currency || record?.currency || ''
+    subscriptionId = subId
+    subscriptionStatus = 'active'
+    newStatus = 'active'
+  } else if (event.type === 'invoice.payment_failed') {
+    const invoice = event.data.object as Stripe.Invoice
+    const subId = invoiceSubscriptionId(invoice)
+    record = subId ? findSessionBySubscriptionId(subId) : undefined
+    callbackEvent = 'subscription.payment_failed'
+    paymentStatus = invoice.status || 'open'
+    amountTotal = invoice.amount_due
+    currency = invoice.currency || record?.currency || ''
+    subscriptionId = subId
+    subscriptionStatus = 'past_due'
+    newStatus = 'past_due'
+  } else if (event.type === 'customer.subscription.deleted') {
+    const sub = event.data.object as Stripe.Subscription
+    record = findSessionBySubscriptionId(sub.id) || findSessionByBrokerRef(sub.metadata?.broker_ref || '')
+    callbackEvent = 'subscription.canceled'
+    paymentStatus = sub.status
+    currency = record?.currency || ''
+    subscriptionId = sub.id
+    subscriptionStatus = sub.status
+    newStatus = 'canceled'
   } else {
     // Unhandled event type — acknowledge so Stripe stops retrying.
     return NextResponse.json({ received: true, ignored: event.type })
@@ -128,6 +196,8 @@ export async function POST(
     amountTotal,
     currency,
     stripePaymentIntentId: paymentIntentId,
+    stripeSubscriptionId: subscriptionId,
+    subscriptionStatus,
   }
 
   const result = await dispatchCallback(record, payload)
@@ -149,6 +219,7 @@ export async function POST(
   updateCheckoutSession(record.sessionId, {
     status: newStatus,
     paymentIntentId: paymentIntentId || record.paymentIntentId,
+    ...(subscriptionId ? { subscriptionId } : {}),
     processedEventIds: [...record.processedEventIds, event.id],
     dispatched,
   })
