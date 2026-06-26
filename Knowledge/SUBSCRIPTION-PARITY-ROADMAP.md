@@ -80,9 +80,13 @@
 6. **Test**: TEST mode (card 4242) → flip mapping `brokerEnv→live` → test din nou. **NO-TOUCH** (4pro-eat/PRO/eCabinet/BlocHub) = propose-confirm-apply, sesiune dedicată.
 
 ## Ordinea recomandată de migrare (după paritate)
-1. **Tutor** sau **knowbest** (RO, ACTIVE, non-NO-TOUCH) — primul șablon real de abonament.
-2. NO-TOUCH (propose-confirm): **4pro-eat → PRO → eCabinet → BlocHub**.
-3. **website-guru** (Varianta 1 completă).
+1. [x] **Tutor** — **MIGRAT (TEST) 2026-06-26** (commit Tutor `15d7739`, biller **Class RDA**). Șablonul real de abonament: checkout→broker (inline price_data+trial+coupon din voucher) + `/api/stripe/callback` (HMAC+anti-replay+idempotency→Payment/status/referral). E2E verificat pe prod (test). Rămas = acțiuni user Stripe Dashboard (webhook subscription events + Customer Portal pe Class RDA) + flip brokerEnv test→live. Detalii: `Tutor/TODO_PERSISTENT.md`.
+   - **Șablon reutilizabil** pt restul: (a) sync-broker-keys → `.env`; (b) checkout→`POST {broker}/api/checkout`; (c) handler `/api/stripe/callback` keyed pe `metadata.userId` (NU `stripeCustomerId`); (d) webhook firmei în stripe.com.
+2. **knowbest** (RO, ACTIVE, non-NO-TOUCH) — următorul, același șablon.
+3. NO-TOUCH (propose-confirm): **4pro-eat → PRO → eCabinet → BlocHub**.
+4. **website-guru** (Varianta 1 completă).
+
+> **Follow-up broker (din migrarea Tutor)**: adaugă `eventId` (Stripe event.id) în payload-ul callback ca renewal-urile să fie idempotente pe retry de broker la consumator (acum doar activation/one-time sunt deduped pe sessionId).
 
 ## Referințe cod
 - Contract: `Knowledge/CHECKOUT-BROKER.md` (secțiune subscription).
