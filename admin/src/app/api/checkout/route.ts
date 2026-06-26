@@ -93,6 +93,46 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Trial period (subscription only) → subscription_data.trial_period_days.
+  let trialDays: number | undefined
+  if (body?.trialDays != null) {
+    const d = Number(body.trialDays)
+    if (!Number.isInteger(d) || d < 1 || d > 730) {
+      return NextResponse.json({ error: 'trialDays must be an integer 1..730' }, { status: 400 })
+    }
+    if (mode !== 'subscription') {
+      return NextResponse.json({ error: 'trialDays is only valid in subscription mode' }, { status: 400 })
+    }
+    trialDays = d
+  }
+
+  // Coupon / discount: the broker creates a coupon on the company account and
+  // attaches it to the session. Exactly one of percentOff / amountOff.
+  const couponInput = body?.coupon
+  if (couponInput != null) {
+    if (typeof couponInput !== 'object') {
+      return NextResponse.json({ error: 'coupon must be an object' }, { status: 400 })
+    }
+    const hasPct = typeof couponInput.percentOff === 'number'
+    const hasAmt = typeof couponInput.amountOff === 'number'
+    if (hasPct === hasAmt) {
+      return NextResponse.json({ error: 'coupon needs exactly one of percentOff or amountOff' }, { status: 400 })
+    }
+    if (hasPct && (couponInput.percentOff <= 0 || couponInput.percentOff > 100)) {
+      return NextResponse.json({ error: 'coupon.percentOff must be in (0,100]' }, { status: 400 })
+    }
+    if (hasAmt && !(couponInput.amountOff > 0)) {
+      return NextResponse.json({ error: 'coupon.amountOff must be > 0' }, { status: 400 })
+    }
+    const dur = couponInput.duration || 'once'
+    if (!['once', 'forever', 'repeating'].includes(dur)) {
+      return NextResponse.json({ error: 'coupon.duration must be once|forever|repeating' }, { status: 400 })
+    }
+    if (dur === 'repeating' && !(Number.isInteger(couponInput.durationInMonths) && couponInput.durationInMonths > 0)) {
+      return NextResponse.json({ error: 'coupon.duration=repeating requires durationInMonths > 0' }, { status: 400 })
+    }
+  }
+
   // Resolve the company whose Stripe key the broker uses for this project.
   const companySlug = mapping.brokerCompany
   const env = mapping.brokerEnv || 'test'
@@ -136,6 +176,26 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Coupon (opt-in): create on the company account, attach as a session discount.
+    let discountCouponId: string | undefined
+    if (couponInput) {
+      const dur = couponInput.duration || 'once'
+      // Reuse the consumer idempotency key (if any) so a retried checkout doesn't
+      // leave orphan coupons behind on the company account.
+      const couponIdem = typeof body?.idempotencyKey === 'string' && body.idempotencyKey
+        ? { idempotencyKey: `coupon:${mapping.projectSlug}:${body.idempotencyKey}` }
+        : undefined
+      const coupon = await stripe.coupons.create({
+        ...(typeof couponInput.percentOff === 'number'
+          ? { percent_off: couponInput.percentOff }
+          : { amount_off: toStripeAmount(couponInput.amountOff), currency: couponInput.currency || currency }),
+        duration: dur,
+        ...(dur === 'repeating' ? { duration_in_months: couponInput.durationInMonths } : {}),
+        ...(couponInput.metadata && typeof couponInput.metadata === 'object' ? { metadata: couponInput.metadata } : {}),
+      }, couponIdem)
+      discountCouponId = coupon.id
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode,
       line_items: lineItems.map((item: any) => ({
@@ -174,8 +234,10 @@ export async function POST(request: NextRequest) {
       metadata: stripeMetadata,
       // Carry broker_ref onto the right sub-object so PI failures / renewals map back here.
       ...(mode === 'subscription'
-        ? { subscription_data: { metadata: stripeMetadata } }
+        ? { subscription_data: { metadata: stripeMetadata, ...(trialDays ? { trial_period_days: trialDays } : {}) } }
         : { payment_intent_data: { metadata: stripeMetadata } }),
+      // Coupon discount (opt-in).
+      ...(discountCouponId ? { discounts: [{ coupon: discountCouponId }] } : {}),
     }, {
       // Idempotency-Key (S7): a consumer can pass a stable key so a retried POST
       // does not create a duplicate Stripe session. Falls back to brokerRef

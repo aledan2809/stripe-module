@@ -96,11 +96,14 @@ export async function POST(
   let paymentIntentId: string | null = null
   let subscriptionId: string | null = null
   let subscriptionStatus: string | null = null
+  let customerId: string | null = null
   let newStatus: CheckoutSessionRecord['status'] | null = null
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session
     record = getCheckoutSession(session.id) || findSessionByBrokerRef(session.metadata?.broker_ref || '')
+    // Persist the Stripe Customer so the consumer can later open a Billing Portal.
+    customerId = typeof session.customer === 'string' ? session.customer : null
     if (session.mode === 'subscription') {
       // Subscription checkout completed → a Stripe Subscription now exists.
       subscriptionId = typeof session.subscription === 'string' ? session.subscription : null
@@ -232,6 +235,7 @@ export async function POST(
       status: newStatus,
       paymentIntentId: paymentIntentId || fresh.paymentIntentId,
       ...(subscriptionId ? { subscriptionId } : {}),
+      ...(customerId ? { customerId } : {}),
       processedEventIds: [...fresh.processedEventIds, event.id],
       dispatched,
     })

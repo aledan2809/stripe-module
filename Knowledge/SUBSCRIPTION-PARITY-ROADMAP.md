@@ -14,10 +14,16 @@
 - **Tooling**: `admin/scripts/sync-broker-keys.mjs` (trage cheile unui proiect din broker → scrie `STRIPE_BROKER_URL/PROJECT_KEY/CALLBACK_SECRET` în `.env`-ul app-ului; chei env-independent, o-singură-dată-per-app).
 
 ## Ce NU face încă (blochează migrarea app-urilor mature)
-1. **Trial** (perioadă de probă)
-2. **Cupoane / discount-uri** (vouchere)
-3. **Customer management + Billing Portal** (cancel/upgrade abonament de către user)
-4. **(opțional) Price-ID passthrough** (preț pre-creat pe contul firmei, în loc de inline)
+1. ~~**Trial** (perioadă de probă)~~ ✅ DONE 2026-06-26
+2. ~~**Cupoane / discount-uri** (vouchere)~~ ✅ DONE 2026-06-26
+3. ~~**Customer management + Billing Portal** (cancel/upgrade abonament de către user)~~ ✅ DONE 2026-06-26
+4. **(opțional) Price-ID passthrough** (preț pre-creat pe contul firmei, în loc de inline) — încă low priority
+
+> **STATUS 2026-06-26**: paritatea necesară migrării (1-3) e COMPLETĂ pe broker (LIVE).
+> - Trial: checkout `trialDays` → `subscription_data.trial_period_days`.
+> - Cupoane: checkout `coupon:{percentOff|amountOff,duration,durationInMonths,metadata}` → `coupons.create` pe contul firmei + `discounts`; idempotent pe consumer key.
+> - Portal: `customerId` stocat la activare + `POST /api/portal {sessionId|subscriptionId,returnUrl}` → `billingPortal.sessions.create`.
+> Contract: `Knowledge/CHECKOUT-BROKER.md`. Următor = migrarea app-urilor (Tutor șablon → knowbest → NO-TOUCH). Acțiune user per firmă: activează Customer Portal în Stripe Dashboard.
 
 ---
 

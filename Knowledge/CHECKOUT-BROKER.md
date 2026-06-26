@@ -53,6 +53,29 @@ Adaugă `"mode": "subscription"` + un **interval** pe fiecare lineItem (sau top-
 - `amount` rămâne **unități MAJORE** (49 = 49 RON/interval). Broker-ul creează un abonament Stripe; `invoice_creation` nu se aplică (abonamentele facturează automat). `mode` lipsă = `payment` (plată unică, neschimbat).
 - Răspuns identic `200 { url, sessionId }`.
 
+#### Trial + Cupoane (opt-in, aditiv)
+```jsonc
+{
+  "mode": "subscription", "lineItems": [...], "currency": "ron", "...": "...",
+  "trialDays": 14,                              // doar subscription; integer 1..730 → trial_period_days
+  "coupon": {                                   // broker creează cuponul pe contul firmei + îl atașează
+    "percentOff": 20,                           //   XOR amountOff (unități MAJORE) + currency (default = currency sesiunii)
+    "duration": "repeating",                    //   once | forever | repeating
+    "durationInMonths": 3,                      //   doar pt duration=repeating
+    "metadata": { "voucherId": "..." }          //   opțional, ajunge pe cupon (mapare înapoi)
+  }
+}
+```
+- `trialDays`: doar `mode:subscription` (altfel 400). `coupon`: exact unul din `percentOff` (∈(0,100]) / `amountOff` (>0). Validate server-side.
+- `idempotencyKey` (dacă e trimis) face și crearea cuponului idempotentă (fără cupoane orfane la retry).
+
+### Customer Portal — `POST /api/portal`  (consumer → broker)
+Customer-ul abonamentului trăiește pe contul FIRMEI (brokerul ține cheia), deci app-ul cere brokerului să-i deschidă portalul.
+**Headers:** `X-Project-Key`. **Body:** `{ "sessionId": "cs_..." | "subscriptionId": "sub_...", "returnUrl": "https://..." }`
+→ `200 { url }` (redirect userul) | `401` cheie/proiect greșit | `404` sesiune necunoscută | `400` customer încă neactivat / returnUrl invalid | `429` rate-limit.
+- Brokerul rezolvă `customerId` (stocat la activare din `checkout.session.completed`) → `billingPortal.sessions.create`.
+- **Acțiune user (o dată per firmă):** activează Customer Portal în Stripe Dashboard (Settings → Billing → Customer portal) pe contul firmei, altfel Stripe întoarce „No configuration provided".
+
 ## 2) POST /api/stripe/webhook/[companySlug]  (Stripe → broker)
 Webhook-ul FIECĂREI firme din Stripe pointează aici cu **companySlug**-ul ei (ex. `/api/stripe/webhook/techbiz`).
 Brokerul verifică semnătura pe **raw body** cu webhook-secret-ul firmei (încearcă test apoi live).

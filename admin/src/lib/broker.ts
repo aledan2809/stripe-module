@@ -49,6 +49,8 @@ export interface CheckoutSessionRecord {
   paymentIntentId?: string
   /** Set once the Stripe subscription exists (subscription mode) — maps renewal/cancel events back here */
   subscriptionId?: string
+  /** Stripe Customer id (set at activation) — needed to open a Billing Portal session */
+  customerId?: string
   createdAt: string
   /** Stripe event ids already dispatched (idempotency) */
   processedEventIds: string[]
