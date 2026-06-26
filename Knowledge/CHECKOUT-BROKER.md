@@ -37,10 +37,27 @@ broker ──POST <callbackUrl> (X-Broker-Signature = HMAC)──▶ consumer ap
 **Răspuns:** `200 { url, sessionId }` — redirecționezi userul la `url`.
 **Erori:** `401` project-key invalid / projectSlug nepotrivit · `404` proiect fără firmă broker sau fără credențiale · `503` broker dezactivat · `400` body invalid · `502` eroare Stripe.
 
+### Abonament (recurent) — `mode: "subscription"`
+Adaugă `"mode": "subscription"` + un **interval** pe fiecare lineItem (sau top-level `"interval"`):
+```jsonc
+{
+  "projectSlug": "tutor",
+  "mode": "subscription",
+  "lineItems": [{ "name": "Plan Pro", "amount": 49, "interval": "month", "intervalCount": 1 }],
+  "currency": "ron",
+  "successUrl": "...", "cancelUrl": "...", "callbackUrl": "...",
+  "metadata": { "userId": "..." }
+}
+```
+- `interval`: `day` | `week` | `month` | `year` (per lineItem, fallback la `body.interval`); `intervalCount` opțional (default 1).
+- `amount` rămâne **unități MAJORE** (49 = 49 RON/interval). Broker-ul creează un abonament Stripe; `invoice_creation` nu se aplică (abonamentele facturează automat). `mode` lipsă = `payment` (plată unică, neschimbat).
+- Răspuns identic `200 { url, sessionId }`.
+
 ## 2) POST /api/stripe/webhook/[companySlug]  (Stripe → broker)
 Webhook-ul FIECĂREI firme din Stripe pointează aici cu **companySlug**-ul ei (ex. `/api/stripe/webhook/techbiz`).
 Brokerul verifică semnătura pe **raw body** cu webhook-secret-ul firmei (încearcă test apoi live).
-Evenimente: `checkout.session.completed` (doar `payment_status='paid'`), `checkout.session.expired`, `payment_intent.payment_failed`.
+Evenimente: `checkout.session.completed` (payment paid → `payment.succeeded`; subscription → `subscription.activated`), `checkout.session.expired`, `payment_intent.payment_failed`, `invoice.paid` (reînnoire → `subscription.renewed`, prima factură de creare e ignorată), `invoice.payment_failed` (→ `subscription.payment_failed`), `customer.subscription.deleted` (→ `subscription.canceled`).
+**Pt abonamente, adaugă în Stripe (pe webhook-ul firmei) și:** `invoice.paid`, `invoice.payment_failed`, `customer.subscription.deleted` (pe lângă `checkout.session.completed`).
 Idempotent (Stripe livrează de 2×). Pe eșec de callback → **500** ca Stripe să reîncerce (durable retry).
 
 ## 3) POST <callbackUrl>  (broker → consumer)  ⚠️ orice app consumator implementează ASTA (AVE prima)
@@ -48,14 +65,17 @@ Idempotent (Stripe livrează de 2×). Pe eșec de callback → **500** ca Stripe
 **Body:**
 ```jsonc
 {
-  "event": "payment.succeeded" | "payment.expired" | "payment.failed",
+  "event": "payment.succeeded" | "payment.expired" | "payment.failed"
+         | "subscription.activated" | "subscription.renewed" | "subscription.payment_failed" | "subscription.canceled",
   "sessionId": "cs_test_...",
   "projectSlug": "ave",
   "metadata": { ...echoed... },
   "paymentStatus": "paid",
   "amountTotal": 2900,            // ⚠️ UNITĂȚI MINORE (cents) — Stripe raw; NU major units
   "currency": "usd",
-  "stripePaymentIntentId": "pi_..." | null
+  "stripePaymentIntentId": "pi_..." | null,
+  "stripeSubscriptionId": "sub_..." | null,   // setat pe subscription.*
+  "subscriptionStatus": "active" | "past_due" | "canceled" | null
 }
 ```
 **Consumatorul TREBUIE (la fel pentru oricine, AVE inclus):**
