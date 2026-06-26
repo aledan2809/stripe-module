@@ -138,12 +138,15 @@ export function upsertCompany(company: CompanyProfile): void {
 export function deleteCompany(slug: string): void {
   const companies = getCompanies().filter(c => c.slug !== slug)
   saveCompanies(companies)
-  // Clear this company from project mappings (both subscription and service)
+  // Clear this company from project mappings (subscription, service AND broker).
+  // Keep a mapping if it still references any company in ANY of the three roles —
+  // broker-only mappings (the group-assign default) must NOT be dropped.
   const mappings = getProjectMappings().map(m => ({
     ...m,
     subscriptionCompany: m.subscriptionCompany === slug ? '' : m.subscriptionCompany,
     serviceCompany: m.serviceCompany === slug ? '' : m.serviceCompany,
-  })).filter(m => m.subscriptionCompany || m.serviceCompany)
+    brokerCompany: m.brokerCompany === slug ? '' : m.brokerCompany,
+  })).filter(m => m.subscriptionCompany || m.serviceCompany || m.brokerCompany)
   saveProjectMappings(mappings)
   // Remove credentials
   const creds = getAllCredentials()
