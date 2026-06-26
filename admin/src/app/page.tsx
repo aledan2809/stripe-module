@@ -84,8 +84,8 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div className="company-actions">
-                    <span className={`status-dot ${c.credentials?.test?.secretKey ? 'green' : 'gray'}`} title="Test keys" />
-                    <span className={`status-dot ${c.credentials?.live?.secretKey ? 'green' : 'gray'}`} title="Live keys" />
+                    <span className={`status-dot ${c.credentialsStatus?.test?.hasSecret ? 'green' : 'gray'}`} title="Test keys" />
+                    <span className={`status-dot ${c.credentialsStatus?.live?.hasSecret ? 'green' : 'gray'}`} title="Live keys" />
                   </div>
                 </div>
               ))}

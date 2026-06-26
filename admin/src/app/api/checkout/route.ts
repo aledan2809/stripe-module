@@ -8,6 +8,7 @@ import {
   type CheckoutSessionRecord,
 } from '@/lib/broker'
 import { createInvoiceCustomer, ensureTaxRate } from '@/lib/invoicing'
+import { rateLimit } from '@/lib/guard'
 
 /**
  * POST /api/checkout — Checkout Broker entry point.
@@ -31,6 +32,11 @@ export async function POST(request: NextRequest) {
 
   if (mapping.brokerEnabled === false) {
     return NextResponse.json({ error: 'Broker disabled for this project' }, { status: 503 })
+  }
+
+  // Per-key rate limit (S7) — blunt abuse of a leaked project key.
+  if (!rateLimit('checkout', projectKey)) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
   }
 
   let body: any
@@ -170,6 +176,13 @@ export async function POST(request: NextRequest) {
       ...(mode === 'subscription'
         ? { subscription_data: { metadata: stripeMetadata } }
         : { payment_intent_data: { metadata: stripeMetadata } }),
+    }, {
+      // Idempotency-Key (S7): a consumer can pass a stable key so a retried POST
+      // does not create a duplicate Stripe session. Falls back to brokerRef
+      // (unique per request) when not supplied.
+      idempotencyKey: typeof body?.idempotencyKey === 'string' && body.idempotencyKey
+        ? `checkout:${mapping.projectSlug}:${body.idempotencyKey}`
+        : brokerRef,
     })
 
     const record: CheckoutSessionRecord = {

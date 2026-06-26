@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
+import { atomicWriteFileSync } from './atomic'
 
 /**
  * Checkout Broker storage + crypto + callback dispatch.
@@ -64,6 +65,11 @@ export type BrokerCallbackEvent =
   | 'subscription.canceled'
 
 export interface BrokerCallbackPayload {
+  /** Payload contract version — lets consumers evolve their verification (S6). */
+  v: number
+  /** Unix seconds when the broker signed this callback. Consumers should reject
+   *  callbacks older than ~5 min to prevent replay of a captured signed body (S6). */
+  t: number
   event: BrokerCallbackEvent
   sessionId: string
   projectSlug: string
@@ -77,6 +83,9 @@ export interface BrokerCallbackPayload {
   stripeSubscriptionId?: string | null
   subscriptionStatus?: string | null
 }
+
+/** Current broker→consumer callback contract version. */
+export const CALLBACK_VERSION = 1
 
 // ─── Store (JSON file) ──────────────────────────────────────────────
 
@@ -96,7 +105,7 @@ function readStore(): SessionStore {
 function writeStore(store: SessionStore): void {
   const filePath = path.join(DATA_DIR, SESSIONS_FILE)
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
-  fs.writeFileSync(filePath, JSON.stringify(store, null, 2), 'utf-8')
+  atomicWriteFileSync(filePath, JSON.stringify(store, null, 2))
 }
 
 export function saveCheckoutSession(record: CheckoutSessionRecord): void {

@@ -8,6 +8,7 @@ interface Company {
   isVatPayer: boolean; vatRate: number; currency: string; country: string
   stripeEnvironment: 'test' | 'live'; website: string; logoUrl: string
   credentials?: any; projects?: any[]
+  credentialsStatus?: { test: { hasSecret: boolean; hasWebhook: boolean }; live: { hasSecret: boolean; hasWebhook: boolean } }
 }
 
 interface StripeKeys { secretKey: string; publishableKey: string; webhookSecret: string }
@@ -245,8 +246,8 @@ export default function CompaniesPage() {
                       <span className="badge badge-none">{c.projects?.length} proiecte</span>
                     )}
                     <span className="flex items-center gap-2 text-sm text-muted">
-                      <span className={`status-dot ${c.credentials?.test?.secretKey ? 'green' : 'gray'}`} />Test
-                      <span className={`status-dot ${c.credentials?.live?.secretKey ? 'green' : 'gray'}`} />Live
+                      <span className={`status-dot ${c.credentialsStatus?.test?.hasSecret ? 'green' : 'gray'}`} />Test
+                      <span className={`status-dot ${c.credentialsStatus?.live?.hasSecret ? 'green' : 'gray'}`} />Live
                     </span>
                   </div>
                 </div>

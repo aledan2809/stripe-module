@@ -3,11 +3,20 @@ import { getCompanies, upsertCompany, deleteCompany, getCredentials, getProjects
 
 export async function GET() {
   const companies = getCompanies()
-  const enriched = companies.map(c => ({
-    ...c,
-    credentials: getCredentials(c.slug),
-    projects: getProjectsForCompany(c.slug),
-  }))
+  // S3: the company LIST must not ship every firm's Stripe secrets in one response.
+  // Return presence-only flags; the full keys load on demand via /api/credentials?slug=
+  // when a single company's editor is opened.
+  const enriched = companies.map(c => {
+    const creds = getCredentials(c.slug)
+    return {
+      ...c,
+      credentialsStatus: {
+        test: { hasSecret: !!creds.test?.secretKey, hasWebhook: !!creds.test?.webhookSecret },
+        live: { hasSecret: !!creds.live?.secretKey, hasWebhook: !!creds.live?.webhookSecret },
+      },
+      projects: getProjectsForCompany(c.slug),
+    }
+  })
   return NextResponse.json(enriched)
 }
 

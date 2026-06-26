@@ -50,3 +50,26 @@
 | Date | Change |
 |------|--------|
 | 2026-06-11 | Scaffolded (True E2E [10] session). TRUE FULL E2E S1-S12 + C1-C3 definite. |
+
+## ✅ Stripe Broker — security hardening (4 items + bonus) — DONE 2026-06-26
+Sursă: `Stripe/Reports/INTROSPECTION-2026-06-20/04b-security-audit.md` (S1-S8). Toate aplicate într-o sesiune dedicată (deploy LIVE pe stripe.knowbest.ro).
+
+- [x] 🔴 **S2 — `npm audit fix`** — next 15.5.14→**15.5.19** (HIGH middleware/proxy-bypass + postcss/qs); build verde. Reziduul de advisory (cere 16.3.0 inexistent) e acoperit de nginx basic-auth ca strat primar + S4. (2026-06-26)
+- [x] 🟡 **S1 — Chei Stripe criptate at-rest** — `crypto-at-rest.ts` AES-256-GCM envelope (env `STRIPE_DATA_KEY`), citire dual plaintext/criptat (backward-compat), `chmod 600`, migrare `admin/scripts/encrypt-credentials.mjs`. Activat pe prod cu cheia salvată în `Master/credentials/stripe-broker.env`. (2026-06-26)
+- [x] 🟡 **S3 — Listă API nu mai expune cheile** — `/api/companies` întoarce doar `credentialsStatus` (prezență), nu cheile complete. Cheile full doar la `/api/credentials?slug=` (editor single-slug, behind basic-auth). _Rămas (decizie): mascare + reveal-endpoint pe editorul single-slug — UX redesign, deferat._ (2026-06-26)
+- [x] 🟡 **S4 — Port 3025** — verificat: **NU** e accesibil extern (UFW default-deny; test din afară = refuzat). Întărit: next legat pe **127.0.0.1** (defense-in-depth, nu mai depinde doar de UFW). (2026-06-26)
+- [x] 🟢 **S5 — File-store lock + atomic write** — `atomic.ts` (tmp+rename, 0600) + `locks.ts` (mutex per-sessionId); webhook re-read sub lock → elimină lost-update pe `processedEventIds`. (2026-06-26)
+- [x] 🟢 **S6 — Callback anti-replay** — `v`+`t`(unix) în payload + HMAC; consumatorii pot respinge `now-t>300s`. Aditiv/backward-compat. (2026-06-26)
+- [x] **S7 (bonus)** — `timingSafeEqual` pe project-key + rate-limit 60/min pe /checkout,/refund + Idempotency-Key opțional (consumer-supplied). (2026-06-26)
+- _Solid (confirmat, fără acțiune): webhook semnat pe raw body + idempotency, runtime `data/*.json` gitignored, Checkout hosted = PCI SAQ A, refund izolat per project-key._
+- _Rămas deschis (decizii user): mascare editor single-slug (S3 rest), backup automat criptat `data/` + retenție (S9)._
+
+---
+
+## 🔍 Introspection Audit 2026-06-20
+> Audit complet (gap strategie↔cod · ghid per-pagină · deep research · funcțional + cyber).
+> Acțiuni de securitate (S1-S7) **rezolvate 2026-06-26** (vezi blocul de mai sus).
+> Rapoarte: `Reports/INTROSPECTION-2026-06-20/` (00-SUMMARY.md, 01-gap-strategy-vs-code.md, 02-pages-guide-RO.md, 03-deep-research-optimization.md, 04b-security-audit.md)
+> Checklist Alex centralizat: `Master/reports/Alex_TODO_2026-06-20.md` + tab „Introspection Audit" în UI Master.
+
+---

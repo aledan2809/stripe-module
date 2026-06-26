@@ -65,6 +65,8 @@ Idempotent (Stripe livrează de 2×). Pe eșec de callback → **500** ca Stripe
 **Body:**
 ```jsonc
 {
+  "v": 1,                         // versiune contract callback (S6)
+  "t": 1750000000,                // unix sec când brokerul a semnat (S6) — respinge dacă vechi
   "event": "payment.succeeded" | "payment.expired" | "payment.failed"
          | "subscription.activated" | "subscription.renewed" | "subscription.payment_failed" | "subscription.canceled",
   "sessionId": "cs_test_...",
@@ -82,6 +84,7 @@ Idempotent (Stripe livrează de 2×). Pe eșec de callback → **500** ca Stripe
 1. Recalculează `hex(hmacSHA256(rawBody, STRIPE_BROKER_CALLBACK_SECRET))` și compară cu `X-Broker-Signature` (timing-safe). Respinge dacă nu se potrivește.
 2. **Dedupe pe `sessionId`** — la duplicate strict-concurente brokerul poate trimite callback-ul de 2× (lost-update pe file-store). Procesează o singură dată per sessionId.
 3. Răspunde **2xx** rapid; orice non-2xx declanșează retry (broker + Stripe).
+4. **(recomandat, S6)** respinge callback-urile cu `now - t > 300s` (anti-replay). Câmpurile `v`/`t` sunt aditive — verificarea HMAC pe rawBody rămâne identică; un consumator care încă nu enforce-ază fereastra nu se rupe.
 
 ## Env pe app-ul consumator (orice proiect)
 ```
@@ -94,4 +97,7 @@ STRIPE_BROKER_CALLBACK_SECRET=cbs_...      # verifică X-Broker-Signature
 - **amountTotal = unități MINORE** (cents) pe callback (input e major units). Asimetria e intenționată: e valoarea raw de la Stripe.
 - Brokerul folosește **stripe SDK direct** (nu lib-ul `@projects/stripe-module`) — aceleași apeluri Stripe, același ×100; contractul extern e identic.
 - `callbackUrl` trebuie http(s) (guard anti file:///data:).
+- **(S7)** `/api/checkout` + `/api/refund` au rate-limit per project-key (60/min) → `429` la depășire.
+- **(S7)** opțional `idempotencyKey` (string) pe body-ul `/api/checkout` ȘI `/api/refund`: retry de rețea cu aceeași cheie NU dublează sesiunea/refund-ul. La checkout, fără cheie → unic per request (fără dedup). La refund, fără cheie → fără idempotency (full-refund e oricum idempotent prin `charge_already_refunded`; pe parțiale trimite cheie ca să eviți dublarea).
+- **(S1)** secretele Stripe la repaus (`sk_`/`whsec_`) sunt criptate AES-256-GCM când `STRIPE_DATA_KEY` e setat în env (envelope encryption); fără cheie = plaintext (legacy). `pk_` rămâne plaintext (public). Migrare: `admin/scripts/encrypt-credentials.mjs`.
 - Restul contractului (cele 3 părți, headers, status-uri) = EXACT ca în spec.

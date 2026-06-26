@@ -1,6 +1,9 @@
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
+import { atomicWriteFileSync } from './atomic'
+import { encryptSecret, decryptSecret } from './crypto-at-rest'
+import { timingSafeEqualStr } from './guard'
 
 /**
  * Resolve the module's data/ dir robustly (G-STRIPE-006):
@@ -107,7 +110,7 @@ function readJson<T>(filename: string, fallback: T): T {
 function writeJson(filename: string, data: unknown): void {
   const filePath = path.join(DATA_DIR, filename)
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8')
+  atomicWriteFileSync(filePath, JSON.stringify(data, null, 2))
 }
 
 // --- Companies ---
@@ -156,13 +159,45 @@ export function deleteCompany(slug: string): void {
 
 // --- Credentials ---
 
+// Encrypt/decrypt the secret fields (secretKey, webhookSecret) at the storage
+// boundary (S1). Publishable keys are not secret → stay plaintext.
+function decKeys(k: StripeKeys): StripeKeys {
+  return {
+    secretKey: decryptSecret(k?.secretKey || ''),
+    publishableKey: k?.publishableKey || '',
+    webhookSecret: decryptSecret(k?.webhookSecret || ''),
+  }
+}
+function encKeys(k: StripeKeys): StripeKeys {
+  return {
+    secretKey: encryptSecret(k?.secretKey || ''),
+    publishableKey: k?.publishableKey || '',
+    webhookSecret: encryptSecret(k?.webhookSecret || ''),
+  }
+}
+
 function getAllCredentials(): Record<string, CompanyCredentials> {
   const data = readJson<{ companies: Record<string, CompanyCredentials> }>('credentials.json', { companies: {} })
-  return data.companies || {}
+  const stored = data.companies || {}
+  const out: Record<string, CompanyCredentials> = {}
+  for (const [slug, c] of Object.entries(stored)) {
+    out[slug] = {
+      test: decKeys(c?.test || { secretKey: '', publishableKey: '', webhookSecret: '' }),
+      live: decKeys(c?.live || { secretKey: '', publishableKey: '', webhookSecret: '' }),
+    }
+  }
+  return out
 }
 
 function saveAllCredentials(creds: Record<string, CompanyCredentials>): void {
-  writeJson('credentials.json', { companies: creds })
+  const enc: Record<string, CompanyCredentials> = {}
+  for (const [slug, c] of Object.entries(creds)) {
+    enc[slug] = {
+      test: encKeys(c?.test || { secretKey: '', publishableKey: '', webhookSecret: '' }),
+      live: encKeys(c?.live || { secretKey: '', publishableKey: '', webhookSecret: '' }),
+    }
+  }
+  writeJson('credentials.json', { companies: enc })
 }
 
 export function getCredentials(companySlug: string): CompanyCredentials {
@@ -229,7 +264,8 @@ export function getProjectsForCompany(companySlug: string): ProjectMapping[] {
 /** Resolve a project mapping by its broker API key (X-Project-Key). */
 export function findMappingByApiKey(apiKey: string): ProjectMapping | undefined {
   if (!apiKey) return undefined
-  return getProjectMappings().find(m => m.apiKey === apiKey)
+  // Timing-safe compare (S7) — don't leak key prefix/length via short-circuit ===.
+  return getProjectMappings().find(m => !!m.apiKey && timingSafeEqualStr(m.apiKey, apiKey))
 }
 
 // --- Ecosystems (curated grouping for the project picker) ---

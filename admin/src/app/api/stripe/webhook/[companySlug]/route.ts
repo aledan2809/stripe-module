@@ -7,10 +7,12 @@ import {
   findSessionBySubscriptionId,
   updateCheckoutSession,
   dispatchCallback,
+  CALLBACK_VERSION,
   type CheckoutSessionRecord,
   type BrokerCallbackEvent,
   type BrokerCallbackPayload,
 } from '@/lib/broker'
+import { withLock } from '@/lib/locks'
 
 /**
  * POST /api/stripe/webhook/[companySlug] — Stripe → broker, one endpoint per company.
@@ -182,47 +184,58 @@ export async function POST(
     return NextResponse.json({ received: true, ignored: 'no matching session' })
   }
 
-  // Idempotency: if this exact Stripe event was already dispatched, ack without re-sending.
-  if (record.processedEventIds.includes(event.id)) {
-    return NextResponse.json({ received: true, idempotent: true })
-  }
+  // Serialize the read-modify-write critical section per session (S5): two
+  // concurrent webhooks for the same session must not clobber each other's
+  // processedEventIds. Re-read the record fresh under the lock so the idempotency
+  // check and the final write both see the latest persisted state.
+  const sessionId = record.sessionId
+  return withLock(sessionId, async () => {
+    const fresh = getCheckoutSession(sessionId) || record!
 
-  const payload: BrokerCallbackPayload = {
-    event: callbackEvent,
-    sessionId: record.sessionId,
-    projectSlug: record.projectSlug,
-    metadata: record.metadata,
-    paymentStatus,
-    amountTotal,
-    currency,
-    stripePaymentIntentId: paymentIntentId,
-    stripeSubscriptionId: subscriptionId,
-    subscriptionStatus,
-  }
+    // Idempotency: if this exact Stripe event was already dispatched, ack without re-sending.
+    if (fresh.processedEventIds.includes(event.id)) {
+      return NextResponse.json({ received: true, idempotent: true })
+    }
 
-  const result = await dispatchCallback(record, payload)
+    const payload: BrokerCallbackPayload = {
+      v: CALLBACK_VERSION,
+      t: Math.floor(Date.now() / 1000),
+      event: callbackEvent!,
+      sessionId: fresh.sessionId,
+      projectSlug: fresh.projectSlug,
+      metadata: fresh.metadata,
+      paymentStatus,
+      amountTotal,
+      currency,
+      stripePaymentIntentId: paymentIntentId,
+      stripeSubscriptionId: subscriptionId,
+      subscriptionStatus,
+    }
 
-  const dispatched = [
-    ...record.dispatched,
-    { event: callbackEvent, at: new Date().toISOString(), ok: result.ok, statusCode: result.statusCode },
-  ]
+    const result = await dispatchCallback(fresh, payload)
 
-  if (!result.ok) {
-    // Persist the attempt but do NOT mark the event processed → return 500 so Stripe retries.
-    updateCheckoutSession(record.sessionId, { dispatched })
-    return NextResponse.json(
-      { error: 'Callback dispatch failed', detail: result.error || result.statusCode },
-      { status: 500 }
-    )
-  }
+    const dispatched = [
+      ...fresh.dispatched,
+      { event: callbackEvent!, at: new Date().toISOString(), ok: result.ok, statusCode: result.statusCode },
+    ]
 
-  updateCheckoutSession(record.sessionId, {
-    status: newStatus,
-    paymentIntentId: paymentIntentId || record.paymentIntentId,
-    ...(subscriptionId ? { subscriptionId } : {}),
-    processedEventIds: [...record.processedEventIds, event.id],
-    dispatched,
+    if (!result.ok) {
+      // Persist the attempt but do NOT mark the event processed → return 500 so Stripe retries.
+      updateCheckoutSession(sessionId, { dispatched })
+      return NextResponse.json(
+        { error: 'Callback dispatch failed', detail: result.error || result.statusCode },
+        { status: 500 }
+      )
+    }
+
+    updateCheckoutSession(sessionId, {
+      status: newStatus,
+      paymentIntentId: paymentIntentId || fresh.paymentIntentId,
+      ...(subscriptionId ? { subscriptionId } : {}),
+      processedEventIds: [...fresh.processedEventIds, event.id],
+      dispatched,
+    })
+
+    return NextResponse.json({ received: true, dispatched: callbackEvent })
   })
-
-  return NextResponse.json({ received: true, dispatched: callbackEvent })
 }

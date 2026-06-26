@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { findMappingByApiKey, getCredentials } from '@/lib/data'
 import { getCheckoutSession } from '@/lib/broker'
+import { rateLimit } from '@/lib/guard'
 
 /**
  * POST /api/refund — money-back guarantee for consumer apps.
@@ -19,6 +20,11 @@ export async function POST(request: NextRequest) {
   const mapping = findMappingByApiKey(projectKey)
   if (!mapping) {
     return NextResponse.json({ error: 'Invalid project key' }, { status: 401 })
+  }
+
+  // Per-key rate limit (S7).
+  if (!rateLimit('refund', projectKey)) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
   }
 
   let body: any
@@ -60,11 +66,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No payment to refund (session not paid)' }, { status: 400 })
     }
 
+    // Idempotency-Key (S7): only when the consumer supplies a stable key — that's
+    // the only way to tell "a network retry of THIS refund" apart from "a second,
+    // legitimate same-amount partial refund". A deterministic amount-based key would
+    // wrongly merge the latter. Full-refund double-submits are already absorbed by
+    // the charge_already_refunded catch below.
+    const idemKey = typeof body?.idempotencyKey === 'string' && body.idempotencyKey
+      ? `refund:${paymentIntentId}:${body.idempotencyKey}`
+      : undefined
     const refund = await stripe.refunds.create({
       payment_intent: paymentIntentId,
       ...(typeof amount === 'number' && amount > 0 ? { amount: Math.round(amount * 100) } : {}),
       ...(reason ? { metadata: { reason: String(reason).slice(0, 200) } } : {}),
-    })
+    }, idemKey ? { idempotencyKey: idemKey } : undefined)
     return NextResponse.json({ ok: true, refundId: refund.id, status: refund.status })
   } catch (e: any) {
     // Already-refunded → treat as success (idempotent for retries).
