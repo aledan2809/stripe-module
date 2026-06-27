@@ -5,6 +5,28 @@
 
 ---
 
+## [ ] 📧 BUILD — Invoice email per-proiect (cu BCC de control) — propus user 2026-06-26
+
+> **NO-TOUCH CRITIC** (broker deține `sk_live_`) → propose-confirm-apply, backup `data/`, smoke pe prod. `data/*.json` gitignored (mai puțin `ecosystems.json`) — nu commitui, nu șterge la `git pull`.
+>
+> **🔴 PREREQ user (blochează verificarea, nu codul):** (a) credențiale SMTP cont **techbiz.ae** (host/port/user/parolă); (b) confirmă că **invoice@techbiz.ae e cutie reală** (pt BCC). Fără ele, Verify/Send-test/acceptance §7 nu se pot rula.
+
+**OBIECTIV**: când un client plătește printr-un proiect (one-time ȘI abonament-renewal), brokerul trimite clientului emailul cu factura (link/PDF din Stripe) + BCC pe adresă de control (default `invoice@techbiz.ae`), cu șablon editabil per-proiect + FROM specific per-proiect verificat în prealabil. Toate trimiterile logate (UI + inbox BCC). Brokerul trimite singur (NU `stripe.invoices.sendInvoice` — facturile din Checkout `invoice_creation` sunt deja paid; sendInvoice e doar pt draft/open; + e singura cale de BCC). După live: OFF în Stripe Dashboard toggle „Email finalized invoices to customers" (un singur emitent).
+
+**Context tehnic (citește înainte)**: webhook `admin/src/app/api/stripe/webhook/[companySlug]/route.ts` (cuplezi emailul ADITIV, fără să atingi callback-ul HMAC); date `admin/src/lib/data.ts` (`ProjectMapping`, `getCredentials`, readJson/writeJson pe `data/*.json`); secrete `admin/src/lib/crypto-at-rest.ts` (`encryptSecret/decryptSecret` — parola SMTP criptată); UI `admin/src/app/{projects,companies,credentials}/page.tsx`. Brokerul n-are azi email (zero nodemailer) → îl adaugi.
+
+**Pași**:
+1. **Transport SMTP** (techbiz.ae, partajat): `nodemailer`+`@types/nodemailer`; config în `data/email-config.json` (gitignored) `{smtp:{host,port:587,secure:false,user,passEnc:"enc:v1:...",fromDefault:"invoice@techbiz.ae"},verified,verifiedAt}` — `passEnc` criptat; `getEmailConfig/saveEmailConfig/getTransporter` (parola doar în memorie, niciodată logată).
+2. **Config per-proiect** în `ProjectMapping.invoiceEmail?` = `{enabled,fromName,fromAddress,bcc(default invoice@techbiz.ae),subjectTemplate,bodyTemplate(HTML),verified,verifiedAt}`. Placeholders `{{projectName/invoiceNumber/amount/currency/customerEmail/hostedInvoiceUrl/invoicePdfUrl/date}}`. Default editabil (FĂRĂ cuvântul „AI"): Subject „Factura {{invoiceNumber}} — {{projectName}}"; Body salut + „Îți mulțumim pentru plată." + nr + sumă/valută + linkuri Vezi factura/Descarcă PDF + footer. Backward-compat: lipsă `invoiceEmail` = off.
+3. **Verificare prealabilă (obligatorie)**: niciun email live dacă `verified!==true`. Pași: validează format from/bcc → `transporter.verify()` → test-send real (FROM=fromAddress, TO=bcc, „[TEST] ...") → doar dacă toate trec `verified=true`. Schimbarea fromAddress/SMTP resetează `verified=false`.
+4. **Cuplare webhook** (aditiv, non-blocking, idempotent): după callback-ul existent, pe `checkout.session.completed`+`payment.succeeded` (one-time → `invoices.retrieve(session.invoice)` sau `expand:['invoice']`) și `invoice.paid` (renewal → `event.data.object`): rezolvă projectSlug (din `session.metadata.projectSlug`/client_reference_id — vezi `api/checkout/route.ts`) → mapping → `!enabled` skip, `!verified` → BLOCKED_UNVERIFIED (fail-closed) → din invoice ia number/hosted_invoice_url/invoice_pdf/customer_email → idempotență pe `data/invoice-emails.json` (claim atomic PENDING pe invoice.id) → trimite from „{{fromName}} <{{fromAddress}}>" to=customer_email bcc=invoiceEmail.bcc → loghează SENT/FAILED. **Tot blocul în try/catch: eroarea de email NU schimbă HTTP-ul webhook-ului** (callback + 200/500 ca azi).
+5. **UI admin**: secțiune „Email" (SMTP broker: host/port/secure/user/parolă write-only mascată criptată + „Verify"); în `projects/page.tsx` Edit modal secțiune „Invoice email" per-proiect (toggle, fromName, fromAddress, bcc prefill, editor subject/body + listă placeholders, „Send test" → §3, badge verified); pagină „Invoice emails" (log din `data/invoice-emails.json`: dată/proiect/invoiceNumber/to/bcc/status/eroare).
+6. **Gitignore + deploy**: `.gitignore` += `data/email-config.json` + `data/invoice-emails.json`. SMTP prin `data/email-config.json` (criptat), nu `.env` (`STRIPE_DATA_KEY` deja în `.env.local`). Deploy (DEPLOY_REGISTRY row 14f): backup `data/*.json` în /tmp ÎNAINTE de `git pull` → `cd admin && npm install && npm run build && pm2 restart stripe-broker` (NU `--update-env`) → restore data/ dacă pull le-a atins. Smoke: /api/checkout 401 fără key, webhook 400 fără semnătură, admin 401→200 basic-auth, AVE app.techbiz.ae 200.
+7. **Acceptance**: (1) SMTP „Verify" trece; (2) proiect `ave` test → enable + „Send test" → verified ✓; (3) checkout test → client primește email + BCC primește copia + rând SENT; (4) replay webhook → 1 singur SENT; (5) enabled dar `verified=false` → BLOCKED_UNVERIFIED zero email; (6) eroare SMTP → webhook normal (callback neafectat) + rând FAILED; (7) Stripe Dashboard auto-email OFF pe contul testat.
+8. **Out of scope**: nu schimba callback-ul HMAC; nu `stripe.invoices.sendInvoice`; fără „AI" în textul client.
+
+---
+
 ## 🎯 TRUE FULL E2E — multi-role business workflows
 
 > Source of truth pentru scope-ul auditului [10] pe acest modul. Rolurile relevante:
