@@ -7,10 +7,10 @@
  * customer + tax rate to the Checkout Session and enables invoice_creation so
  * Stripe finalizes + emails a PDF tax invoice / receipt.
  *
- * Tax rates are treated as VAT-INCLUSIVE — UAE consumer prices must include VAT,
- * so a $30 line stays $30 total (≈ $28.57 + $1.43 VAT at 5%). Export 0% leaves
- * the total unchanged. The pure rate/code/note come from @aledan/invoice on the
- * consumer side; the broker only renders what it's given.
+ * Tax rates are EXCLUSIVE by default (price is net, VAT added on top): a $30 line
+ * → $30 + 5% = $31.50 for a UAE customer, $30 + 0% = $30 for an export. Pass
+ * vat.inclusive=true to make the price VAT-inclusive instead. The pure
+ * rate/code/note/inclusive come from the consumer side; the broker renders them.
  */
 import type Stripe from 'stripe'
 import { getCachedTaxRate, cacheTaxRate } from './data'
@@ -20,6 +20,8 @@ export interface InvoiceVat {
   code: string
   label?: string
   note?: string
+  /** true = price already includes VAT; false/undefined = VAT added on top (exclusive, default). */
+  inclusive?: boolean
 }
 
 export interface InvoiceCustomerInput {
@@ -52,7 +54,10 @@ export async function ensureTaxRate(
   env: string,
   vat: InvoiceVat,
 ): Promise<string> {
-  const key = `${companySlug}:${env}:${vat.code}`
+  // Exclusive by default (price is net, VAT added on top) — the broker standard.
+  const inclusive = vat.inclusive === true
+  // Cache key includes inclusive/exclusive so we never reuse the wrong-behavior rate.
+  const key = `${companySlug}:${env}:${vat.code}:${inclusive ? 'inc' : 'exc'}`
   const cached = getCachedTaxRate(key)
   if (cached) return cached
   const existing = inflightRates.get(key)
@@ -70,7 +75,7 @@ export async function ensureTaxRate(
     try {
       const list = await stripe.taxRates.list({ active: true, limit: 100 })
       const match = list.data.find(
-        (r) => r.display_name === display && r.percentage === pct && r.inclusive === true && r.country === 'AE',
+        (r) => r.display_name === display && r.percentage === pct && r.inclusive === inclusive && r.country === 'AE',
       )
       if (match) {
         cacheTaxRate(key, match.id)
@@ -83,7 +88,7 @@ export async function ensureTaxRate(
       display_name: display,
       description: vat.note || undefined,
       percentage: pct,
-      inclusive: true,
+      inclusive,
       country: 'AE',
     })
     cacheTaxRate(key, rate.id)
