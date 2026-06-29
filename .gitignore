@@ -20,3 +20,7 @@ data/checkout-sessions.json
 # runtime data (edited via admin UI / API — NOT seed; gitignored so deploys don't clobber live mappings/companies)
 data/project-mappings.json
 data/companies.json
+
+# invoice email: SMTP config (encrypted password) + send log (PII: customer emails)
+data/email-config.json
+data/invoice-emails.json

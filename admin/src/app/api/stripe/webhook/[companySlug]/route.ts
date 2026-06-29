@@ -13,6 +13,7 @@ import {
   type BrokerCallbackPayload,
 } from '@/lib/broker'
 import { withLock } from '@/lib/locks'
+import { maybeSendInvoiceEmail, type InvoiceLike } from '@/lib/email'
 
 /**
  * POST /api/stripe/webhook/[companySlug] — Stripe → broker, one endpoint per company.
@@ -74,10 +75,12 @@ export async function POST(
   }
 
   let event: Stripe.Event | null = null
+  let matchedSecretKey = ''
   for (const c of candidates) {
     try {
       const stripe = new Stripe(c.secretKey)
       event = stripe.webhooks.constructEvent(rawBody, signature, c.webhookSecret)
+      matchedSecretKey = c.secretKey
       break
     } catch {
       // try next env's secret
@@ -98,12 +101,19 @@ export async function POST(
   let subscriptionStatus: string | null = null
   let customerId: string | null = null
   let newStatus: CheckoutSessionRecord['status'] | null = null
+  // Invoice-email source: a session's invoice id (retrieved later) or a renewal invoice object.
+  let sessionInvoiceId: string | null = null
+  let renewalInvoice: Stripe.Invoice | null = null
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session
     record = getCheckoutSession(session.id) || findSessionByBrokerRef(session.metadata?.broker_ref || '')
     // Persist the Stripe Customer so the consumer can later open a Billing Portal.
     customerId = typeof session.customer === 'string' ? session.customer : null
+    // Invoice id (string or expanded) → retrieved later for the invoice email.
+    sessionInvoiceId = typeof session.invoice === 'string'
+      ? session.invoice
+      : (session.invoice && typeof session.invoice === 'object' ? (session.invoice as { id?: string }).id || null : null)
     if (session.mode === 'subscription') {
       // Subscription checkout completed → a Stripe Subscription now exists.
       subscriptionId = typeof session.subscription === 'string' ? session.subscription : null
@@ -150,6 +160,7 @@ export async function POST(
     }
     const subId = invoiceSubscriptionId(invoice)
     record = subId ? findSessionBySubscriptionId(subId) : undefined
+    renewalInvoice = invoice
     callbackEvent = 'subscription.renewed'
     paymentStatus = invoice.status || 'paid'
     amountTotal = invoice.amount_paid
@@ -239,6 +250,23 @@ export async function POST(
       processedEventIds: [...fresh.processedEventIds, event.id],
       dispatched,
     })
+
+    // ── Invoice email (ADDITIVE, fail-soft) ──────────────────────────────
+    // Runs only on money-in events, only after the callback succeeded above.
+    // maybeSendInvoiceEmail never throws; the extra try/catch double-guards the
+    // Stripe invoice retrieval so an email failure can NEVER change this HTTP status.
+    if (callbackEvent === 'payment.succeeded' || callbackEvent === 'subscription.activated' || callbackEvent === 'subscription.renewed') {
+      try {
+        let invoiceForEmail: InvoiceLike | null = renewalInvoice as InvoiceLike | null
+        if (!invoiceForEmail && sessionInvoiceId && matchedSecretKey) {
+          const inv = await new Stripe(matchedSecretKey).invoices.retrieve(sessionInvoiceId)
+          invoiceForEmail = inv as unknown as InvoiceLike
+        }
+        await maybeSendInvoiceEmail(fresh.projectSlug, invoiceForEmail)
+      } catch (e) {
+        console.error('[broker] invoice email step failed (non-blocking):', e instanceof Error ? e.message : e)
+      }
+    }
 
     return NextResponse.json({ received: true, dispatched: callbackEvent })
   })

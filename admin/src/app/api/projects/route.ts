@@ -48,6 +48,18 @@ export async function POST(request: NextRequest) {
   }
   delete mapping.regenerateBrokerKeys
 
+  // Invoice email: changing the FROM address invalidates the prior verification
+  // (a live email must never go out on an unverified FROM). Enforced server-side
+  // so a UI that forgets to reset can't bypass the fail-closed gate.
+  if (mapping.invoiceEmail) {
+    const existing = getProjectMappings().find(m => m.projectSlug === mapping.projectSlug)
+    const prevFrom = existing?.invoiceEmail?.fromAddress
+    if (prevFrom !== undefined && prevFrom !== mapping.invoiceEmail.fromAddress) {
+      mapping.invoiceEmail.verified = false
+      mapping.invoiceEmail.verifiedAt = null
+    }
+  }
+
   upsertProjectMapping(mapping)
   return NextResponse.json({ ok: true, brokerKeys: generated })
 }

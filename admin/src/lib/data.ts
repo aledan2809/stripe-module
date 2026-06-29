@@ -61,6 +61,23 @@ export interface CompanyCredentials {
 }
 
 /**
+ * Per-project invoice email config (broker emails the customer the Stripe
+ * invoice + BCC on a paid checkout / renewal). Absent → feature off.
+ */
+export interface InvoiceEmailConfig {
+  enabled: boolean
+  fromName: string
+  fromAddress: string
+  /** Control copy address (default invoice@techbiz.ae). */
+  bcc: string
+  subjectTemplate: string
+  bodyTemplate: string
+  /** A real test send must pass before any live email goes out (fail-closed). */
+  verified: boolean
+  verifiedAt: string | null
+}
+
+/**
  * Each project has 2 separate Stripe configurations:
  *
  * 1. subscriptionCompany — firma care ÎNCASEAZĂ ABONAMENTUL pentru folosirea aplicației
@@ -93,6 +110,8 @@ export interface ProjectMapping {
   brokerEnv?: 'test' | 'live'
   /** Brokerul răspunde 503 dacă e dezactivat */
   brokerEnabled?: boolean
+  /** Invoice email per-proiect (BCC de control). Absent → dezactivat. */
+  invoiceEmail?: InvoiceEmailConfig
 }
 
 // --- File helpers ---

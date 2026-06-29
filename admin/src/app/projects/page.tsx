@@ -4,13 +4,27 @@ import { useState, useEffect } from 'react'
 
 interface ProjectInfo { slug: string; path: string }
 interface EcoGroup { name: string; projects: ProjectInfo[] }
+interface InvoiceEmailCfg {
+  enabled: boolean; fromName: string; fromAddress: string; bcc: string
+  subjectTemplate: string; bodyTemplate: string
+  verified: boolean; verifiedAt: string | null
+}
 interface Mapping {
   projectSlug: string; projectPath: string
   subscriptionCompany: string; subscriptionEnv: 'test' | 'live'
   serviceCompany: string; serviceEnv: 'test' | 'live'
   brokerCompany?: string; brokerEnv?: 'test' | 'live'; brokerEnabled?: boolean
   apiKey?: string; callbackSecret?: string
+  invoiceEmail?: InvoiceEmailCfg
 }
+
+const DEFAULT_INVOICE_EMAIL: InvoiceEmailCfg = {
+  enabled: false, fromName: '', fromAddress: '', bcc: 'invoice@techbiz.ae',
+  subjectTemplate: 'Factura {{invoiceNumber}} — {{projectName}}',
+  bodyTemplate: '<p>Bună ziua,</p>\n<p>Îți mulțumim pentru plată.</p>\n<p>Factura <strong>{{invoiceNumber}}</strong> în valoare de <strong>{{amount}} {{currency}}</strong> a fost emisă.</p>\n<p><a href="{{hostedInvoiceUrl}}">Vezi factura</a> · <a href="{{invoicePdfUrl}}">Descarcă PDF</a></p>\n<p>{{projectName}}</p>',
+  verified: false, verifiedAt: null,
+}
+const INVOICE_PLACEHOLDERS = '{{projectName}} {{invoiceNumber}} {{amount}} {{currency}} {{customerEmail}} {{hostedInvoiceUrl}} {{invoicePdfUrl}} {{date}}'
 interface Company { slug: string; name: string }
 
 const EMPTY_MAPPING: Omit<Mapping, 'projectSlug' | 'projectPath'> = {
@@ -100,6 +114,45 @@ export default function ProjectsPage() {
     await fetch(`/api/projects?projectSlug=${projectSlug}`, { method: 'DELETE' })
     setMessage({ type: 'success', text: `${projectSlug} dezasignat` })
     load()
+  }
+
+  // Invoice email: update the editing config; changing fromAddress invalidates
+  // the prior verification (mirrors the server-side fail-closed reset).
+  const updateIE = (patch: Partial<InvoiceEmailCfg>) => {
+    if (!editing) return
+    const cur = editing.invoiceEmail || DEFAULT_INVOICE_EMAIL
+    const next = { ...cur, ...patch }
+    if (patch.fromAddress !== undefined && patch.fromAddress !== cur.fromAddress) { next.verified = false; next.verifiedAt = null }
+    setEditing({ ...editing, invoiceEmail: next })
+  }
+
+  // Persist the current mapping without closing the modal (used before the test send).
+  const persistEditing = async () => {
+    if (!editing) return
+    await fetch('/api/projects', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editing),
+    })
+  }
+
+  const sendInvoiceTest = async () => {
+    if (!editing) return
+    setSaving(true)
+    setMessage({ type: 'info', text: 'Se salvează config + trimite test la BCC…' })
+    await persistEditing()
+    const res = await fetch('/api/invoice-email-test', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectSlug: editing.projectSlug }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSaving(false)
+    if (data.ok) {
+      setEditing({ ...editing, invoiceEmail: { ...(editing.invoiceEmail || DEFAULT_INVOICE_EMAIL), verified: true, verifiedAt: new Date().toISOString() } })
+      setMessage({ type: 'success', text: `✓ Test trimis la ${editing.invoiceEmail?.bcc}. Invoice email verificat pentru ${editing.projectSlug}.` })
+      load()
+    } else {
+      setMessage({ type: 'error', text: `Test eșuat: ${data.error || 'eroare necunoscută'}` })
+    }
   }
 
   const toggleEnv = async (mapping: Mapping, type: 'subscription' | 'service') => {
@@ -479,6 +532,59 @@ export default function ProjectsPage() {
                     )}
                   </div>
                 )}
+              </div>
+
+              {/* Invoice email (broker payments) — customer gets the Stripe invoice + control BCC */}
+              <div style={{ border: '1px solid #06b6d433', borderRadius: 10, padding: 16, marginBottom: 16, background: 'rgba(6, 182, 212, 0.05)' }}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#06b6d4' }} />
+                    <span style={{ fontSize: 15, fontWeight: 600, color: '#22d3ee' }}>Invoice email</span>
+                  </div>
+                  <div className="switch-container">
+                    <span className="text-muted" style={{ fontSize: 12, fontWeight: 600 }}>OFF</span>
+                    <label className="switch">
+                      <input type="checkbox" checked={!!editing.invoiceEmail?.enabled} onChange={e => updateIE({ enabled: e.target.checked })} />
+                      <span className="switch-slider" />
+                    </label>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: editing.invoiceEmail?.enabled ? '#22d3ee' : 'var(--text-muted)' }}>ON</span>
+                  </div>
+                </div>
+                <p className="text-sm text-muted mb-4">
+                  La o plată prin broker, clientul primește emailul cu factura (link + PDF din Stripe) + o copie BCC de control.
+                  Necesită SMTP verificat (pagina <strong>Email</strong>) + un test per-proiect aici.
+                </p>
+                {editing.invoiceEmail?.enabled && (<>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="form-group">
+                      <label className="form-label">From name</label>
+                      <input className="form-input" value={editing.invoiceEmail.fromName} onChange={e => updateIE({ fromName: e.target.value })} placeholder="AVE Audit" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">From address (domeniu verificat în Resend)</label>
+                      <input className="form-input" value={editing.invoiceEmail.fromAddress} onChange={e => updateIE({ fromAddress: e.target.value })} placeholder="invoice@techbiz.ae" />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">BCC (copie de control)</label>
+                    <input className="form-input" value={editing.invoiceEmail.bcc} onChange={e => updateIE({ bcc: e.target.value })} placeholder="invoice@techbiz.ae" />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Subiect</label>
+                    <input className="form-input" value={editing.invoiceEmail.subjectTemplate} onChange={e => updateIE({ subjectTemplate: e.target.value })} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Corp (HTML)</label>
+                    <textarea className="form-input mono" rows={6} value={editing.invoiceEmail.bodyTemplate} onChange={e => updateIE({ bodyTemplate: e.target.value })} style={{ fontSize: 12 }} />
+                  </div>
+                  <p className="text-sm text-muted">Placeholders: <code style={{ fontSize: 11 }}>{INVOICE_PLACEHOLDERS}</code></p>
+                  <div className="flex items-center gap-3 mt-2">
+                    <button className="btn btn-secondary btn-sm" onClick={sendInvoiceTest} disabled={saving}>Salvează + trimite test la BCC</button>
+                    {editing.invoiceEmail.verified
+                      ? <span className="text-green" style={{ fontWeight: 600, fontSize: 13 }}>✓ Verificat</span>
+                      : <span className="text-yellow" style={{ fontWeight: 600, fontSize: 13 }}>⚠ Neverificat — nu pleacă email live</span>}
+                  </div>
+                </>)}
               </div>
 
               {/* Advanced / optional — separate subscription + service billing. Collapsed by default to avoid the "looks empty" confusion. */}
