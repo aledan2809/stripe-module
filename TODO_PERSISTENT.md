@@ -43,7 +43,9 @@
 
 ---
 
-## [ ] 🧾 BUILD — Browser facturi Stripe (istoric, per firmă) — cerut user 2026-06-29
+## [x] 🧾 BUILD — Browser facturi Stripe (istoric, per firmă) — DONE 2026-06-29 (commit `8964c9e`, LIVE)
+
+> **LIVE 2026-06-29** (commit `8964c9e`): tab „Facturi Stripe" (`/invoices` + `/api/invoices`), read-only per firmă+env, paginare cursor. Verificat: arată factura reală AVE `LQJ9TZ1G-0001 paid 6.00 USD`. (Marker corectat din `[ ]` la 2026-06-30 — feature-ul landase deja; spec-ul original păstrat mai jos.)
 
 > **NO-TOUCH CRITIC** (broker deține `sk_live_`) → propose-confirm-apply, backup `data/`, smoke pe prod. Additiv, read-only (NU emite/modifică facturi).
 > **Origine**: user a observat că tab-ul „Facturi trimise" e doar log de emailuri trimise, nu un browser al facturilor emise. Acesta e feature-ul complementar.
@@ -63,6 +65,20 @@
 5. **Acceptance**: (1) selectezi techbiz-uae + live → apar facturile reale (inclusiv AED 22 AVE); (2) link Vezi/PDF funcționează; (3) firmă fără cheie pe env → mesaj clar, nu crash; (4) paginare „Mai multe" aduce următoarea pagină; (5) smoke prod 401/400/401/200 neschimbat; (6) secretKey niciodată în răspuns.
 
 **Out of scope**: nu emite/anula/plăti facturi (read-only); fără „AI" în UI.
+
+---
+
+## [x] 🔁 BROKER — `eventId` în callback payload (renewal idempotent pe retry) — DONE 2026-06-30 (commit `85c2a03`, LIVE)
+
+> **NO-TOUCH CRITIC** propose-confirm-apply (broker deține `sk_live_`). Aditiv, money-path neatins.
+
+**Problemă**: callback-ul broker→consumator nu căra niciun id stabil per-eveniment. La `subscription.renewed`, fiecare reînnoire refolosește același `sessionId` → consumatorul nu putea dedup un retry de broker (Tutor crea Payment duplicat + comision dublu — vezi `Tutor/.../stripe/callback/route.ts`).
+
+**Fix** (commit `85c2a03`): `BrokerCallbackPayload` += `eventId: string` (= Stripe `event.id`, stabil pe retry-uri Stripe ȘI broker) + `CALLBACK_VERSION` 1→2 (aditiv; v1 ignoră câmpul). Webhook pune `eventId: event.id` în payload. HMAC acoperă automat. **Consumatori**: Tutor (`v?` neverificat) + AVE (n-are receptor de callback) → zero breaking.
+
+**Deploy + smoke (2026-06-30)**: VPS2 backup data → pull (`8964c9e`→`85c2a03`) → `npm install` + build gate L277 (exit 0 + `BUILD_ID UdbzqFfbHmnejhjSls048`) → `pm2 restart stripe-broker`. Smoke: checkout 401, webhook 400, admin 401, AVE app 200. ✅
+
+**Consumator (Tutor)**: dedup renewal pe `stripeEventId` — vezi `Tutor/TODO_PERSISTENT.md` (item billing-broker, follow-up tehnic).
 
 ---
 
