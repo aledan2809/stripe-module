@@ -72,6 +72,10 @@ export interface BrokerCallbackPayload {
   /** Unix seconds when the broker signed this callback. Consumers should reject
    *  callbacks older than ~5 min to prevent replay of a captured signed body (S6). */
   t: number
+  /** Stripe event.id — stable across Stripe webhook retries AND broker callback
+   *  retries. Consumers dedup on this; essential for subscription.renewed, which
+   *  reuses the original sessionId so renewals can't otherwise be told apart. */
+  eventId: string
   event: BrokerCallbackEvent
   sessionId: string
   projectSlug: string
@@ -86,8 +90,9 @@ export interface BrokerCallbackPayload {
   subscriptionStatus?: string | null
 }
 
-/** Current broker→consumer callback contract version. */
-export const CALLBACK_VERSION = 1
+/** Current broker→consumer callback contract version.
+ *  v2 (additive): adds `eventId` (Stripe event.id). v1 consumers ignore it. */
+export const CALLBACK_VERSION = 2
 
 // ─── Store (JSON file) ──────────────────────────────────────────────
 

@@ -214,6 +214,7 @@ export async function POST(
     const payload: BrokerCallbackPayload = {
       v: CALLBACK_VERSION,
       t: Math.floor(Date.now() / 1000),
+      eventId: event.id,
       event: callbackEvent!,
       sessionId: fresh.sessionId,
       projectSlug: fresh.projectSlug,
