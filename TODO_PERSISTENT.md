@@ -8,7 +8,8 @@
 ## [x] 📧 BUILD — Invoice email per-proiect (cu BCC de control) — DONE 2026-06-29 (commit `6073207`, LIVE stripe.knowbest.ro)
 
 > **LIVE 2026-06-29** (commit `6073207`, deploy VPS2 backup-data→pull→npm install→build→restart, smoke 6/6 PASS). Transport **Resend** (cheie re_… din credentials, techbiz.ae verificat). Broker SMTP **verificat** (test trimis la invoice@techbiz.ae). **ave-platform** configurat + verificat (enabled, From/BCC invoice@techbiz.ae, TEST mode). Tab-uri noi LIVE: `/email` + `/invoice-emails` (behind basic-auth). Webhook cuplat ADITIV (fail-soft, callback HMAC neatins). `data/email-config.json`+`data/invoice-emails.json` gitignored.
-> **RĂMAS (cere mâna user-ului — VERIFY P2-P7)**: (1) checkout TEST real pe AVE (unlock cu `invoicing:true` → invoice → email + BCC + rând SENT); pt one-time, AVE trebuie să trimită `invoicing:true` (altfel nu se creează invoice → fără email; subs auto-invoice). (2) replay webhook → 0 al 2-lea email. (3) Stripe Dashboard techbiz-uae → „Email finalized invoices to customers" = OFF (un singur emitent). (4) adopție per-proiect pe ceilalți (Tutor etc.) din UI: enable + From verificat + Send test.
+> **🔴 FINDING 2026-06-29: `invoice@techbiz.ae` NU primește emailuri** — în Resend domeniul are `sending=enabled` dar `receiving=disabled` + niciun MX/mailbox real → cele 2 teste FROM/TO invoice@techbiz.ae au plecat dar n-au aterizat. **Trimiterea e OK** (test la alexdanciulescu@gmail.com = `delivered`, Resend email id `4a96472c`). Temporar: ave BCC = alexdanciulescu@gmail.com (ca testele să fie vizibile). **DECIZIE user: provizionează invoice@techbiz.ae real** (Google Workspace / forwarding cu MX) → apoi schimbă BCC înapoi în UI (Proiecte → ave → BCC → Send test). FROM rămâne invoice@techbiz.ae (merge).
+> **RĂMAS (cere mâna user-ului — VERIFY P2-P7)**: (0) provizionează mailbox invoice@techbiz.ae → flip BCC înapoi. (1) checkout TEST real pe AVE (unlock cu `invoicing:true` → invoice → email + BCC + rând SENT); pt one-time, AVE trebuie să trimită `invoicing:true` (altfel nu se creează invoice → fără email; subs auto-invoice). (2) replay webhook → 0 al 2-lea email. (3) Stripe Dashboard techbiz-uae → „Email finalized invoices to customers" = OFF (un singur emitent). (4) adopție per-proiect pe ceilalți (Tutor etc.) din UI: enable + From verificat + Send test.
 
 > **NO-TOUCH CRITIC** (broker deține `sk_live_`) → propose-confirm-apply, backup `data/`, smoke pe prod. `data/*.json` gitignored (mai puțin `ecosystems.json`) — nu commitui, nu șterge la `git pull`.
 >
@@ -39,6 +40,29 @@
 - **P6 (opțional) SMTP down non-blocking**: cheie Resend greșită temporar pe un proiect de test → webhook răspunde normal (callback neafectat) + rând FAILED → repui cheia.
 - **P7 Un singur emitent**: în Stripe Dashboard (techbiz-uae) „Email finalized invoices to customers" = **OFF**.
 - **Regula**: dacă vreun pas pică → NU declara done; loghează HTTP/eroarea exactă + remediază la sursă (fix cod broker = NO-TOUCH propose-confirm-apply + re-smoke).
+
+---
+
+## [ ] 🧾 BUILD — Browser facturi Stripe (istoric, per firmă) — cerut user 2026-06-29
+
+> **NO-TOUCH CRITIC** (broker deține `sk_live_`) → propose-confirm-apply, backup `data/`, smoke pe prod. Additiv, read-only (NU emite/modifică facturi).
+> **Origine**: user a observat că tab-ul „Facturi trimise" e doar log de emailuri trimise, nu un browser al facturilor emise. Acesta e feature-ul complementar.
+
+**OBIECTIV**: un tab nou „Facturi" care listează facturile Stripe emise, per firmă (companySlug) + per mediu (test/live), aducându-le din Stripe API cu cheia firmei (din broker). Read-only: sumă, status (paid/open/void/uncollectible), client (email/nume), dată, link hosted + PDF, nr factură. Filtru per firmă + per status + paginare.
+
+**Context tehnic (citește înainte)**:
+- Cheile firmelor: `admin/src/lib/data.ts` `getCredentials(companySlug)` → `{test,live}.secretKey` (decriptat at-rest). Firme: `getCompanies()`. Mapări proiect→firmă: `getProjectMappings()`.
+- Stripe SDK deja prezent (`stripe` în admin). `new Stripe(secretKey).invoices.list({ limit, starting_after, status? })` → paginare cursor.
+- Middleware gate-uiește deja orice rută admin (localhost / nginx basic-auth). Pattern UI: vezi `admin/src/app/invoice-emails/page.tsx` (tabel) + `companies/page.tsx`.
+
+**Pași**:
+1. **API** `GET /api/invoices?company=<slug>&env=<test|live>&status?=<...>&starting_after?=<id>` → rezolvă cheia firmei (getCredentials), `stripe.invoices.list({limit:50, ...})`, mapează la `{id, number, status, customerEmail, customerName, amountDue, amountPaid, currency, created, hostedInvoiceUrl, invoicePdf}` + `has_more` + `next` cursor. Fail clar dacă firma n-are cheie pe env-ul cerut. NU expune secretKey.
+2. **UI** tab nou `/invoices` (+ link în `layout.tsx`): selector firmă (din /api/companies) + toggle test/live + filtru status + tabel (dată/nr/client/sumă/status/link-uri Vezi+PDF) + buton „Mai multe" (paginare cursor). Buton refresh.
+3. **(opțional)** badge per rând dacă există rând SENT în invoice-emails log (corelează „factura asta a fost și emailată?").
+4. **Gitignore/deploy**: nimic nou de gitignored (read-only din Stripe). Deploy = recipe row 14f (backup data → pull → npm install → build → restart) + smoke.
+5. **Acceptance**: (1) selectezi techbiz-uae + live → apar facturile reale (inclusiv AED 22 AVE); (2) link Vezi/PDF funcționează; (3) firmă fără cheie pe env → mesaj clar, nu crash; (4) paginare „Mai multe" aduce următoarea pagină; (5) smoke prod 401/400/401/200 neschimbat; (6) secretKey niciodată în răspuns.
+
+**Out of scope**: nu emite/anula/plăti facturi (read-only); fără „AI" în UI.
 
 ---
 
