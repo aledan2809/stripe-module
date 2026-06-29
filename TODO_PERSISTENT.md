@@ -5,7 +5,10 @@
 
 ---
 
-## [ ] 📧 BUILD — Invoice email per-proiect (cu BCC de control) — propus user 2026-06-26
+## [x] 📧 BUILD — Invoice email per-proiect (cu BCC de control) — DONE 2026-06-29 (commit `6073207`, LIVE stripe.knowbest.ro)
+
+> **LIVE 2026-06-29** (commit `6073207`, deploy VPS2 backup-data→pull→npm install→build→restart, smoke 6/6 PASS). Transport **Resend** (cheie re_… din credentials, techbiz.ae verificat). Broker SMTP **verificat** (test trimis la invoice@techbiz.ae). **ave-platform** configurat + verificat (enabled, From/BCC invoice@techbiz.ae, TEST mode). Tab-uri noi LIVE: `/email` + `/invoice-emails` (behind basic-auth). Webhook cuplat ADITIV (fail-soft, callback HMAC neatins). `data/email-config.json`+`data/invoice-emails.json` gitignored.
+> **RĂMAS (cere mâna user-ului — VERIFY P2-P7)**: (1) checkout TEST real pe AVE (unlock cu `invoicing:true` → invoice → email + BCC + rând SENT); pt one-time, AVE trebuie să trimită `invoicing:true` (altfel nu se creează invoice → fără email; subs auto-invoice). (2) replay webhook → 0 al 2-lea email. (3) Stripe Dashboard techbiz-uae → „Email finalized invoices to customers" = OFF (un singur emitent). (4) adopție per-proiect pe ceilalți (Tutor etc.) din UI: enable + From verificat + Send test.
 
 > **NO-TOUCH CRITIC** (broker deține `sk_live_`) → propose-confirm-apply, backup `data/`, smoke pe prod. `data/*.json` gitignored (mai puțin `ecosystems.json`) — nu commitui, nu șterge la `git pull`.
 >
