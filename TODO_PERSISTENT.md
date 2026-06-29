@@ -26,6 +26,17 @@
 7. **Acceptance**: (1) SMTP „Verify" trece; (2) proiect `ave` test → enable + „Send test" → verified ✓; (3) checkout test → client primește email + BCC primește copia + rând SENT; (4) replay webhook → 1 singur SENT; (5) enabled dar `verified=false` → BLOCKED_UNVERIFIED zero email; (6) eroare SMTP → webhook normal (callback neafectat) + rând FAILED; (7) Stripe Dashboard auto-email OFF pe contul testat.
 8. **Out of scope**: nu schimba callback-ul HMAC; nu `stripe.invoices.sendInvoice`; fără „AI" în textul client.
 
+**🔬 VERIFY (de rulat DUPĂ implementare + deploy pe stripe.knowbest.ro — NU acum)**:
+- **Precondiții**: pagina „Email" (Resend) salvată + Verify verde (test ajuns la inbox); proiect `ave` cu Invoice email enabled + From techbiz.ae + BCC + Send test ✓; `ave` pe TEST (brokerEnv=test); acces la inbox-ul BCC.
+- **P1 Smoke prod (read-only)**: `POST /api/checkout` fără key → **401**; `POST /api/stripe/webhook/techbiz-uae` fără sig → **400**; `GET /projects` fără auth → **401**; `GET app.techbiz.ae/` → **200**.
+- **P2 Plată TEST ave**: unlock cu billing pe app.techbiz.ae → Stripe Checkout TEST card `4242 4242 4242 4242` (dată viitoare, CVC orice), email la care ai acces. SAU `POST /api/checkout` cu X-Project-Key ave + invoicing:true + billing → finalizează cu 4242.
+- **P3 Confirmă 4**: (a) clientul primește emailul (TO din checkout) cu nr factură + linkuri Vezi factura/PDF funcționale; (b) `invoice@techbiz.ae` primește copia BCC; (c) pagina „Facturi trimise" → rând SENT (ave/invoiceNumber/to/bcc); (d) callback AVE a mers (auditul deblocat — emailul e additiv, n-a blocat fluxul).
+- **P4 Idempotență**: Resend webhook (`checkout.session.completed`) din Dashboard → NU pleacă al 2-lea email, rămâne 1 rând SENT.
+- **P5 Fail-closed**: proiect enabled=true dar `verified=false` → plată → status BLOCKED_UNVERIFIED + zero email.
+- **P6 (opțional) SMTP down non-blocking**: cheie Resend greșită temporar pe un proiect de test → webhook răspunde normal (callback neafectat) + rând FAILED → repui cheia.
+- **P7 Un singur emitent**: în Stripe Dashboard (techbiz-uae) „Email finalized invoices to customers" = **OFF**.
+- **Regula**: dacă vreun pas pică → NU declara done; loghează HTTP/eroarea exactă + remediază la sursă (fix cod broker = NO-TOUCH propose-confirm-apply + re-smoke).
+
 ---
 
 ## 🎯 TRUE FULL E2E — multi-role business workflows
