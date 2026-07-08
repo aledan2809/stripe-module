@@ -212,7 +212,10 @@ export default function ProjectsPage() {
     return null
   }
 
-  const configuredProjects = mappings.filter(m => m.subscriptionCompany || m.serviceCompany)
+  // Include broker-only mappings — Checkout Broker is now the primary config path, so a
+  // project mapped only via the broker must still show up as "configured" (not vanish
+  // because it has no legacy subscription/service company).
+  const configuredProjects = mappings.filter(m => m.subscriptionCompany || m.serviceCompany || m.brokerCompany)
   // Chips turn green on ANY assignment (incl. broker-only — the go-live path), so the ✓ reliably confirms it stuck.
   const assignedSlugs = mappings.filter(m => m.brokerCompany || m.subscriptionCompany || m.serviceCompany).map(m => m.projectSlug)
 
@@ -320,7 +323,26 @@ export default function ProjectsPage() {
                     </div>
                   </div>
 
-                  {/* Two columns: Subscription + Service */}
+                  {/* Checkout Broker — the primary config path; shown when set so broker-only projects aren't blank */}
+                  {m.brokerCompany && (
+                    <div style={{ background: 'var(--bg-card)', border: '1px solid #f59e0b33', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} />
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b' }}>Checkout Broker</span>
+                      </div>
+                      <div className="flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 14, fontWeight: 500 }}>{getCompanyName(m.brokerCompany)}</span>
+                        <span className={m.brokerEnv === 'live' ? 'text-green' : 'text-yellow'} style={{ fontSize: 11, fontWeight: 700 }}>({(m.brokerEnv || 'test').toUpperCase()})</span>
+                        {m.brokerEnabled === false && <span className="text-muted" style={{ fontSize: 11 }}>· dezactivat</span>}
+                        {m.invoiceEmail?.enabled && (
+                          <span className="text-muted" style={{ fontSize: 11 }}>· invoice email {m.invoiceEmail.verified ? '✓' : '⚠ neverificat'}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Two columns: Subscription + Service — only for the legacy sub/service billing model */}
+                  {(m.subscriptionCompany || m.serviceCompany) && (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                     {/* Subscription */}
                     <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 12 }}>
@@ -374,6 +396,7 @@ export default function ProjectsPage() {
                       )}
                     </div>
                   </div>
+                  )}
                 </div>
               ))}
             </div>
