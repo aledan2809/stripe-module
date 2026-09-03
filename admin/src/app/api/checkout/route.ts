@@ -202,7 +202,14 @@ export async function POST(request: NextRequest) {
 
     const session = await stripe.checkout.sessions.create({
       mode,
-      // Cerut EXPLICIT: card + Apple Pay + Google Pay + Link, nimic altceva.
+      // Cerut EXPLICIT cardul. Portofelele bifate pe cont vin la pachet cu el:
+      // VERIFICAT pe o sesiune reală de test creată cu ['card'] (2026-09-03) —
+      // pagina de Checkout încarcă cadrul de login Link și randează butonul
+      // Apple Pay (parametrii componentei: applePay=always, link=auto,
+      // googlePay=never, fiindcă Google Pay e OFF pe toate cele 3 firme).
+      // Sesiunea listează doar ["card"] pentru că Link e tratat CA plată cu
+      // cardul, nu ca metodă separată — de asta absența lui 'link' din
+      // payment_method_types NU înseamnă că Link a dispărut.
       // Omis pe 'auto' → Stripe alege din bifele Dashboard-ului firmei.
       ...(paymentMethods === 'card' ? { payment_method_types: ['card' as const] } : {}),
       line_items: lineItems.map((item: any) => ({
