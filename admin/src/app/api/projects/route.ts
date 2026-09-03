@@ -48,6 +48,16 @@ export async function POST(request: NextRequest) {
   }
   delete mapping.regenerateBrokerKeys
 
+  // paymentMethods: un client vechi (browser cu pagina în cache) trimite maparea
+  // fără câmp — nu are voie să reseteze tăcut un proiect pus pe 'auto' înapoi pe
+  // lista albă (i-ar dispărea metoda locală pentru care fusese comutat).
+  if (mapping.paymentMethods === undefined) {
+    const existing = getProjectMappings().find(m => m.projectSlug === mapping.projectSlug)
+    if (existing?.paymentMethods) mapping.paymentMethods = existing.paymentMethods
+  } else if (mapping.paymentMethods !== 'card' && mapping.paymentMethods !== 'auto') {
+    return NextResponse.json({ error: "paymentMethods must be 'card' or 'auto'" }, { status: 400 })
+  }
+
   // Invoice email: changing the FROM address invalidates the prior verification
   // (a live email must never go out on an unverified FROM). Enforced server-side
   // so a UI that forgets to reset can't bypass the fail-closed gate.

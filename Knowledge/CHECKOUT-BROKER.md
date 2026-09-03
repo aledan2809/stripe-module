@@ -71,6 +71,15 @@ Adaugă `"mode": "subscription"` + un **interval** pe fiecare lineItem (sau top-
 
 ### Customer Portal — `POST /api/portal`  (consumer → broker)
 Customer-ul abonamentului trăiește pe contul FIRMEI (brokerul ține cheia), deci app-ul cere brokerului să-i deschidă portalul.
+### Metodele de plată afișate
+
+Per proiect, în `/projects` → „Metode de plată pe pagina de checkout" (câmp `paymentMethods` pe mapare):
+
+- **`card`** (implicit, inclusiv când câmpul lipsește) — brokerul trimite `payment_method_types: ['card']`. Rămân cardul + portofelele **bifate pe cont**: la 2026-09-03 pe toate cele 3 firme `apple_pay=on`, `link=on`, `google_pay=off` (deci Google Pay nu apare până nu e bifat în Dashboard). Listă ALBĂ: metodele pe care Stripe pornește singur pe cont nu apar.
+- **`auto`** — brokerul omite parametrul; Stripe alege dinamic din bifele Dashboard-ului firmei. Pentru proiecte care au nevoie de metode locale (Klarna DE, Bancontact BE).
+
+De ce implicitul e restrictiv: pe contul Fabulosos, Stripe avea pornite 10 metode (satispay, mb_way, blik, eps, bancontact, klarna, pix pe lângă card/link/apple_pay), iar **satispay a apărut pe o sesiune de ABONAMENT** deși pagina de integrare Checkout a Stripe scrie `Subscription mode: No` (pagina de prezentare a metodei spune invers — documentația se contrazice). Măsurat 2026-09-03 pe toate cele 3 conturi: plățile reușite au folosit DOAR card și link, niciodată o metodă exotică.
+
 **Headers:** `X-Project-Key`. **Body:** `{ "sessionId": "cs_..." | "subscriptionId": "sub_...", "returnUrl": "https://..." }`
 → `200 { url }` (redirect userul) | `401` cheie/proiect greșit | `404` sesiune necunoscută | `400` customer încă neactivat / returnUrl invalid | `429` rate-limit.
 - Brokerul rezolvă `customerId` (stocat la activare din `checkout.session.completed`) → `billingPortal.sessions.create`.

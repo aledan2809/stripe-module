@@ -110,6 +110,28 @@ export interface ProjectMapping {
   brokerEnv?: 'test' | 'live'
   /** Brokerul răspunde 503 dacă e dezactivat */
   brokerEnabled?: boolean
+  /**
+   * Metodele de plată oferite în Checkout (2026-09-03).
+   *
+   * 'card' → brokerul cere EXPLICIT `payment_method_types: ['card']`.
+   *   Portofelele bifate pe cont rămân: documentația Stripe numește `['card']`
+   *   chiar modalitatea manuală de a le obține. Măsurat pe cele 3 firme
+   *   (2026-09-03): apple_pay ON, link ON, **google_pay OFF** — deci Google Pay
+   *   nu apare oricum, până nu-l bifează cineva în Dashboard. Listă ALBĂ, deci
+   *   imună la metodele pe care Stripe le pornește singur pe cont („might
+   *   enable additional payment methods after notifying you").
+   * 'auto' → brokerul NU trimite parametrul: Stripe alege dinamic din ce e
+   *   bifat în Dashboard-ul firmei. De folosit când un proiect chiar are nevoie
+   *   de o metodă locală (Klarna în DE, Bancontact în BE).
+   *
+   * Absent → 'card' (vezi resolvePaymentMethods). Motivul implicitului: pe
+   * contul Fabulosos, Stripe pornise singur satispay (portofel italian, doar
+   * EUR) și mb_way, iar satispay a apărut pe o sesiune de ABONAMENT deși pagina
+   * de integrare Checkout a Stripe scrie „Subscription mode: No" — necunoscută
+   * pe traseul banilor. Zero plăți reușite prin metodele exotice pe niciunul
+   * din cele 3 conturi (măsurat 2026-09-03: doar card și link).
+   */
+  paymentMethods?: 'card' | 'auto'
   /** Invoice email per-proiect (BCC de control). Absent → dezactivat. */
   invoiceEmail?: InvoiceEmailConfig
 }
@@ -249,6 +271,17 @@ export function cacheTaxRate(key: string, taxRateId: string): void {
 }
 
 // --- Project Mappings ---
+
+/**
+ * Ce metode oferă brokerul pentru un proiect. Implicitul e restrictiv ('card')
+ * DELIBERAT: o mapare fără setare nu are voie să expună metode pe care nimeni
+ * nu le-a cerut și pe care nu le-am verificat pe traseul banilor.
+ */
+export function resolvePaymentMethods(
+  mapping: Pick<ProjectMapping, 'paymentMethods'>
+): 'card' | 'auto' {
+  return mapping.paymentMethods === 'auto' ? 'auto' : 'card'
+}
 
 export function getProjectMappings(): ProjectMapping[] {
   const data = readJson<{ mappings: ProjectMapping[] }>('project-mappings.json', { mappings: [] })

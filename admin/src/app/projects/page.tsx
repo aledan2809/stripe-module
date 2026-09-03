@@ -14,6 +14,7 @@ interface Mapping {
   subscriptionCompany: string; subscriptionEnv: 'test' | 'live'
   serviceCompany: string; serviceEnv: 'test' | 'live'
   brokerCompany?: string; brokerEnv?: 'test' | 'live'; brokerEnabled?: boolean
+  paymentMethods?: 'card' | 'auto'
   apiKey?: string; callbackSecret?: string
   invoiceEmail?: InvoiceEmailCfg
 }
@@ -30,7 +31,7 @@ interface Company { slug: string; name: string }
 const EMPTY_MAPPING: Omit<Mapping, 'projectSlug' | 'projectPath'> = {
   subscriptionCompany: '', subscriptionEnv: 'test',
   serviceCompany: '', serviceEnv: 'test',
-  brokerCompany: '', brokerEnv: 'test', brokerEnabled: true,
+  brokerCompany: '', brokerEnv: 'test', brokerEnabled: true, paymentMethods: 'card',
 }
 
 export default function ProjectsPage() {
@@ -334,6 +335,9 @@ export default function ProjectsPage() {
                         <span style={{ fontSize: 14, fontWeight: 500 }}>{getCompanyName(m.brokerCompany)}</span>
                         <span className={m.brokerEnv === 'live' ? 'text-green' : 'text-yellow'} style={{ fontSize: 11, fontWeight: 700 }}>({(m.brokerEnv || 'test').toUpperCase()})</span>
                         {m.brokerEnabled === false && <span className="text-muted" style={{ fontSize: 11 }}>· dezactivat</span>}
+                        <span className="text-muted" style={{ fontSize: 11 }}>
+                          · {m.paymentMethods === 'auto' ? 'plăți: Stripe decide' : 'plăți: doar card'}
+                        </span>
                         {m.invoiceEmail?.enabled && (
                           <span className="text-muted" style={{ fontSize: 11 }}>· invoice email {m.invoiceEmail.verified ? '✓' : '⚠ neverificat'}</span>
                         )}
@@ -543,6 +547,23 @@ export default function ProjectsPage() {
                         <span className="switch-slider" />
                       </label>
                       <span className={editing.brokerEnv === 'live' ? 'text-green' : 'text-muted'} style={{ fontSize: 13, fontWeight: 600 }}>LIVE</span>
+                    </div>
+                    <div className="form-group mt-4">
+                      <label className="form-label">Metode de plată pe pagina de checkout</label>
+                      <select className="form-select" value={editing.paymentMethods || 'card'}
+                        onChange={e => setEditing({ ...editing, paymentMethods: e.target.value as 'card' | 'auto' })}>
+                        <option value="card">Doar card (+ portofelele bifate pe cont: Apple Pay, Link)</option>
+                        <option value="auto">Stripe decide (tot ce e bifat în Dashboard-ul firmei)</option>
+                      </select>
+                      <p className="text-sm text-muted mt-2">
+                        „Doar card" cere explicit cardul, deci nu apar metodele pe care Stripe le
+                        pornește singur pe cont (ex. Satispay, portofel italian, care a ajuns pe o
+                        sesiune de abonament deși documentația Stripe îl dă ca nesuportat acolo).
+                        Portofelele bifate pe cont rămân (azi: Apple Pay și Link; Google Pay
+                        e oprit pe toate firmele, deci nu apare oricum). Alege „Stripe decide" doar dacă
+                        proiectul chiar vinde într-o piață cu metodă locală (Klarna în DE,
+                        Bancontact în BE).
+                      </p>
                     </div>
                     {editing.apiKey && (
                       <div className="mt-4">

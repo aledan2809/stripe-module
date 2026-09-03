@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { findMappingByApiKey, getCredentials } from '@/lib/data'
+import { findMappingByApiKey, getCredentials, resolvePaymentMethods } from '@/lib/data'
 import {
   saveCheckoutSession,
   newBrokerRef,
@@ -196,8 +196,15 @@ export async function POST(request: NextRequest) {
       discountCouponId = coupon.id
     }
 
+    // Metodele de plată: listă albă per proiect (implicit 'card'). Vezi
+    // ProjectMapping.paymentMethods — 'auto' redă comportamentul dinamic Stripe.
+    const paymentMethods = resolvePaymentMethods(mapping)
+
     const session = await stripe.checkout.sessions.create({
       mode,
+      // Cerut EXPLICIT: card + Apple Pay + Google Pay + Link, nimic altceva.
+      // Omis pe 'auto' → Stripe alege din bifele Dashboard-ului firmei.
+      ...(paymentMethods === 'card' ? { payment_method_types: ['card' as const] } : {}),
       line_items: lineItems.map((item: any) => ({
         price_data: {
           currency,
