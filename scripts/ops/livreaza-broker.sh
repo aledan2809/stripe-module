@@ -1,8 +1,9 @@
 #!/bin/bash
 # Livrarea brokerului de plăți (stripe.knowbest.ro) pe VPS2 — contractul de callback v3 (13.10.2026).
-# Rulat de Alex, din folderul stripe-module de pe Mac, DUPĂ livrarea eTutor (eTutor nou știe evenimentele noi):
+# Rulat de Alex, din orice folder de pe Mac, DUPĂ livrarea eTutor (eTutor nou știe evenimentele noi). Serverul găsește
+# folderul brokerului din PM2 și ia scriptul din GitHub într-un fișier:
 #
-#   git pull && ssh root@72.62.155.74 'bash -s' < scripts/ops/livreaza-broker.sh
+#   ssh root@72.62.155.74 'cd "$(pm2 jlist | node -pe "JSON.parse(require(\"fs\").readFileSync(0)).find(p => p.name === \"stripe-broker\").pm2_env.pm_cwd")" && git fetch -q origin master && git show origin/master:scripts/ops/livreaza-broker.sh > /root/livreaza-broker.sh && bash /root/livreaza-broker.sh'
 #
 # Ce face, în ordine — se oprește la prima problemă; până la repornire, procesul care rulează nu e atins:
 #   1. găsește folderul brokerului din PM2 (procesul stripe-broker), arată versiunea și ce intră;
