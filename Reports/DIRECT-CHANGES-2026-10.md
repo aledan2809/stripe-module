@@ -28,3 +28,8 @@ raporta mereu `active`, și pentru o probă cu card.
 
 **Rămas**: livrarea pe VPS2 (backup `data/` înainte), excepția nginx pentru `/api/subscription`, evenimentul
 `customer.subscription.updated` bifat pe webhook-ul firmei în Stripe Dashboard (vezi TODO).
+
+**Pregătit pentru livrare (13.10, sesiunea Tutor)**: `scripts/ops/livreaza-broker.sh` — rulat de Alex de pe Mac după livrarea
+Tutor. Se oprește la prima problemă; build-ul vechi rămâne pus deoparte până la verificarea celui nou; copia `data/` merge în
+`/root/backups/stripe-broker-data-<data>.tgz`; excepția nginx se adaugă doar pentru forma simplă a blocului `/api/checkout`, cu
+`nginx -t` și revenire. Probat local: probele (401/401/400) pe build-ul de producție, extragerea blocului nginx pe un config-model.

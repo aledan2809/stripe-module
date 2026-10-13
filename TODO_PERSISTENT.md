@@ -9,8 +9,13 @@
 
 Commit pe `master` (13.10). Verificat local: broker (build de producție) + Tutor QA, evenimente Stripe semnate cu secretul
 webhook-ului → callback-uri v3 HMAC → Tutor ține perioada: 12/12 (vezi `Reports/DIRECT-CHANGES-2026-10.md`).
-- [ ] **Livrare broker pe VPS2** (`/var/www/stripe-broker`, PM2 `stripe-broker`, :3025): backup `data/` → `git pull` → `npm install` → build → restart → smoke (`/api/checkout` 401 fără cheie, `/api/subscription` 401 fără cheie). Aditiv: consumatorii vechi ignoră câmpurile/evenimentul nou.
-- [ ] **nginx stripe.knowbest.ro**: `/api/subscription` fără basic-auth, ca `/api/portal` (are propria autentificare X-Project-Key).
+- [ ] **Livrare broker pe VPS2** — script gata: din folderul stripe-module de pe Mac, DUPĂ livrarea Tutor,
+  `git pull && ssh root@72.62.155.74 'bash -s' < scripts/ops/livreaza-broker.sh`. Găsește folderul din PM2 (`stripe-broker`),
+  copie `data/` în `/root/backups`, pull → `npm install` → build cu `.next` vechi păstrat (build picat = pus la loc, fără repornire),
+  verifică ruta nouă în build, `pm2 restart` (fără `--update-env`), probe 401/401/400, verifică `data/` neatins.
+- [ ] **nginx stripe.knowbest.ro**: `/api/subscription` fără basic-auth, ca `/api/checkout` — tot scriptul de mai sus: dacă
+  `https://stripe.knowbest.ro/api/subscription` cere parola, copiază blocul `location /api/checkout {…}` cu calea schimbată,
+  `nginx -t`, reload; testul picat = config pus la loc. Altă formă a config-ului → afișează blocurile și se oprește.
 - [ ] **Stripe Dashboard (Alex, per firmă cu abonamente — Class RDA pentru Tutor)**: pe webhook-ul firmei adaugă evenimentul `customer.subscription.updated`. Fără el, Tutor află de o oprire din portal doar la citirea periodică (`/api/subscription`, cel mult o dată la 6 h, când părintele deschide Pachete).
 
 ## [x] 📧 BUILD — Invoice email per-proiect (cu BCC de control) — DONE 2026-06-29 (commit `6073207`, LIVE stripe.knowbest.ro)
