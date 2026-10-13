@@ -17,7 +17,7 @@ webhook-ului → callback-uri v3 HMAC → Tutor ține perioada: 12/12 (vezi `Rep
   cu calea schimbată în `/etc/nginx/sites-available/stripe-knowbest`, `nginx -t` OK, reload; acum răspunde aplicația (copie a
   config-ului vechi: `/root/backups/nginx-stripe-knowbest-2026-10-13-1218`). systemd a cerut `daemon-reload` (unitatea nginx
   schimbată pe disc, dinainte — nu de livrare).
-- [ ] **Stripe Dashboard (Alex, per firmă cu abonamente — Class RDA pentru Tutor)**: pe webhook-ul firmei adaugă evenimentul `customer.subscription.updated`. Fără el, Tutor află de o oprire din portal doar la citirea periodică (`/api/subscription`, cel mult o dată la 6 h, când părintele deschide Pachete).
+- [ ] **Evenimentul `customer.subscription.updated` pe webhook-ul Class RDA** — în Workbench, lui Alex nu-i apărea meniul de editare (13.10); Alex a cerut varianta fără Dashboard: `scripts/ops/adauga-eveniment-webhook.mjs` (pe VPS2, cu cheia brokerului; doar adaugă evenimentul, nu schimbă versiunea API; testat pe un Stripe fals: DRY_RUN, adăugare 4→5, a doua rulare = nimic). **Stripe Dashboard (Alex, per firmă cu abonamente — Class RDA pentru Tutor)**: pe webhook-ul firmei adaugă evenimentul `customer.subscription.updated`. Fără el, Tutor află de o oprire din portal doar la citirea periodică (`/api/subscription`, cel mult o dată la 6 h, când părintele deschide Pachete).
 
 ## [x] 📧 BUILD — Invoice email per-proiect (cu BCC de control) — DONE 2026-06-29 (commit `6073207`, LIVE stripe.knowbest.ro)
 
