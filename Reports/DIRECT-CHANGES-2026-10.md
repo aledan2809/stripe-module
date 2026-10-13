@@ -33,3 +33,9 @@ raporta mereu `active`, și pentru o probă cu card.
 Tutor. Se oprește la prima problemă; build-ul vechi rămâne pus deoparte până la verificarea celui nou; copia `data/` merge în
 `/root/backups/stripe-broker-data-<data>.tgz`; excepția nginx se adaugă doar pentru forma simplă a blocului `/api/checkout`, cu
 `nginx -t` și revenire. Probat local: probele (401/401/400) pe build-ul de producție, extragerea blocului nginx pe un config-model.
+
+**LIVRAT 13.10 (~15:18)** de Alex, cu `scripts/ops/livreaza-broker.sh`: `696d7a2` → `b6e9c1c`; copie `data/`
+`/root/backups/stripe-broker-data-2026-10-13-1218.tgz` (28K); build verificat; `data/` neatins; probe 401/401/400. nginx:
+blocul `location /api/subscription` adăugat în `/etc/nginx/sites-available/stripe-knowbest` (copia blocului `/api/checkout`),
+`nginx -t` OK, reload, verificat public (răspunde aplicația, nu parola); config-ul vechi în
+`/root/backups/nginx-stripe-knowbest-2026-10-13-1218`. Rămas: `customer.subscription.updated` pe webhook-ul Class RDA (Alex).
