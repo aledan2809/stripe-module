@@ -14,6 +14,7 @@ import {
 } from '@/lib/broker'
 import { withLock } from '@/lib/locks'
 import { maybeSendInvoiceEmail, type InvoiceLike } from '@/lib/email'
+import { fetchSubscriptionSummary, summarizeSubscription, type SubscriptionSummary } from '@/lib/subscription-summary'
 
 /**
  * POST /api/stripe/webhook/[companySlug] — Stripe → broker, one endpoint per company.
@@ -28,6 +29,12 @@ import { maybeSendInvoiceEmail, type InvoiceLike } from '@/lib/email'
  *   invoice.paid (renewal, not first invoice)        → subscription.renewed
  *   invoice.payment_failed                           → subscription.payment_failed
  *   customer.subscription.deleted                    → subscription.canceled
+ *   customer.subscription.updated                    → subscription.updated   (v3)
+ *
+ * Contract v3 (additive): every subscription.* callback carries `subscription` — the paid period's end,
+ * a scheduled cancellation, the trial's end, the list price per period (subscription-summary.ts) — and
+ * subscription.payment_failed carries `nextPaymentAttempt`. Read fail-soft: a Stripe read that fails
+ * sends the callback without it.
  *
  * Idempotent (Stripe delivers duplicates). On callback-dispatch failure we return 500 so
  * Stripe retries the webhook; the event id is only marked processed AFTER a successful dispatch.
@@ -104,6 +111,9 @@ export async function POST(
   // Invoice-email source: a session's invoice id (retrieved later) or a renewal invoice object.
   let sessionInvoiceId: string | null = null
   let renewalInvoice: Stripe.Invoice | null = null
+  // v3: the subscription as the event object carries it (deleted/updated); otherwise read below.
+  let subscriptionObject: Stripe.Subscription | null = null
+  let nextPaymentAttempt: string | null | undefined = undefined
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session
@@ -179,6 +189,9 @@ export async function POST(
     subscriptionId = subId
     subscriptionStatus = 'past_due'
     newStatus = 'past_due'
+    nextPaymentAttempt = typeof invoice.next_payment_attempt === 'number' && invoice.next_payment_attempt > 0
+      ? new Date(invoice.next_payment_attempt * 1000).toISOString()
+      : null
   } else if (event.type === 'customer.subscription.deleted') {
     const sub = event.data.object as Stripe.Subscription
     record = findSessionBySubscriptionId(sub.id) || findSessionByBrokerRef(sub.metadata?.broker_ref || '')
@@ -188,6 +201,19 @@ export async function POST(
     subscriptionId = sub.id
     subscriptionStatus = sub.status
     newStatus = 'canceled'
+    subscriptionObject = sub
+  } else if (event.type === 'customer.subscription.updated') {
+    // v3. Only for subscriptions this broker created (the record maps it back to its consumer). The
+    // session record's status isn't changed here: activation/renewal/failure/cancel own it.
+    const sub = event.data.object as Stripe.Subscription
+    record = findSessionBySubscriptionId(sub.id) || findSessionByBrokerRef(sub.metadata?.broker_ref || '')
+    callbackEvent = 'subscription.updated'
+    paymentStatus = sub.status
+    currency = record?.currency || ''
+    subscriptionId = sub.id
+    subscriptionStatus = sub.status
+    newStatus = null
+    subscriptionObject = sub
   } else {
     // Unhandled event type — acknowledge so Stripe stops retrying.
     return NextResponse.json({ received: true, ignored: event.type })
@@ -211,6 +237,17 @@ export async function POST(
       return NextResponse.json({ received: true, idempotent: true })
     }
 
+    // v3: where the subscription stands. From the event when it carries the subscription, else read
+    // from Stripe with the key the signature matched (fail-soft).
+    let subscription: SubscriptionSummary | null | undefined = undefined
+    if (callbackEvent!.startsWith('subscription.')) {
+      subscription = subscriptionObject
+        ? summarizeSubscription(subscriptionObject)
+        : await fetchSubscriptionSummary(matchedSecretKey, subscriptionId)
+      // A subscription that starts with a free trial is reported as such (it used to be 'active' always).
+      if (callbackEvent === 'subscription.activated' && subscription?.status === 'trialing') subscriptionStatus = 'trialing'
+    }
+
     const payload: BrokerCallbackPayload = {
       v: CALLBACK_VERSION,
       t: Math.floor(Date.now() / 1000),
@@ -225,6 +262,8 @@ export async function POST(
       stripePaymentIntentId: paymentIntentId,
       stripeSubscriptionId: subscriptionId,
       subscriptionStatus,
+      ...(subscription !== undefined ? { subscription } : {}),
+      ...(nextPaymentAttempt !== undefined ? { nextPaymentAttempt } : {}),
     }
 
     const result = await dispatchCallback(fresh, payload)
@@ -244,7 +283,7 @@ export async function POST(
     }
 
     updateCheckoutSession(sessionId, {
-      status: newStatus,
+      ...(newStatus ? { status: newStatus } : {}),
       paymentIntentId: paymentIntentId || fresh.paymentIntentId,
       ...(subscriptionId ? { subscriptionId } : {}),
       ...(customerId ? { customerId } : {}),

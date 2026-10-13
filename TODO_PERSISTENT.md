@@ -5,6 +5,14 @@
 
 ---
 
+## [ ] 📅 Contract callback v3 — perioada abonamentului (cerere Alex 13.10, pentru Tutor: „evidența lunii după plată") — COD GATA, NELIVRAT
+
+Commit pe `master` (13.10). Verificat local: broker (build de producție) + Tutor QA, evenimente Stripe semnate cu secretul
+webhook-ului → callback-uri v3 HMAC → Tutor ține perioada: 12/12 (vezi `Reports/DIRECT-CHANGES-2026-10.md`).
+- [ ] **Livrare broker pe VPS2** (`/var/www/stripe-broker`, PM2 `stripe-broker`, :3025): backup `data/` → `git pull` → `npm install` → build → restart → smoke (`/api/checkout` 401 fără cheie, `/api/subscription` 401 fără cheie). Aditiv: consumatorii vechi ignoră câmpurile/evenimentul nou.
+- [ ] **nginx stripe.knowbest.ro**: `/api/subscription` fără basic-auth, ca `/api/portal` (are propria autentificare X-Project-Key).
+- [ ] **Stripe Dashboard (Alex, per firmă cu abonamente — Class RDA pentru Tutor)**: pe webhook-ul firmei adaugă evenimentul `customer.subscription.updated`. Fără el, Tutor află de o oprire din portal doar la citirea periodică (`/api/subscription`, cel mult o dată la 6 h, când părintele deschide Pachete).
+
 ## [x] 📧 BUILD — Invoice email per-proiect (cu BCC de control) — DONE 2026-06-29 (commit `6073207`, LIVE stripe.knowbest.ro)
 
 > **LIVE 2026-06-29** (commit `6073207`, deploy VPS2 backup-data→pull→npm install→build→restart, smoke 6/6 PASS). Transport **Resend** (cheie re_… din credentials, techbiz.ae verificat). Broker SMTP **verificat** (test trimis la invoice@techbiz.ae). **ave-platform** configurat + verificat (enabled, From/BCC invoice@techbiz.ae, TEST mode). Tab-uri noi LIVE: `/email` + `/invoice-emails` (behind basic-auth). Webhook cuplat ADITIV (fail-soft, callback HMAC neatins). `data/email-config.json`+`data/invoice-emails.json` gitignored.

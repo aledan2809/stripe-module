@@ -1,4 +1,5 @@
 import fs from 'fs'
+import type { SubscriptionSummary } from './subscription-summary'
 import path from 'path'
 import crypto from 'crypto'
 import { atomicWriteFileSync } from './atomic'
@@ -65,6 +66,8 @@ export type BrokerCallbackEvent =
   | 'subscription.renewed'
   | 'subscription.payment_failed'
   | 'subscription.canceled'
+  /** v3: the subscription changed (a cancellation scheduled or undone, a new period, the trial's end). */
+  | 'subscription.updated'
 
 export interface BrokerCallbackPayload {
   /** Payload contract version — lets consumers evolve their verification (S6). */
@@ -88,11 +91,20 @@ export interface BrokerCallbackPayload {
   /** Set for subscription.* events */
   stripeSubscriptionId?: string | null
   subscriptionStatus?: string | null
+  /** v3 (additive): where the subscription stands — period end, scheduled cancellation, trial end,
+   *  list price per period. Null when Stripe couldn't be read; absent on payment.* events. */
+  subscription?: SubscriptionSummary | null
+  /** v3 (additive), subscription.payment_failed: when Stripe retries the charge next (ISO), or null
+   *  when it won't retry any more. */
+  nextPaymentAttempt?: string | null
 }
 
 /** Current broker→consumer callback contract version.
- *  v2 (additive): adds `eventId` (Stripe event.id). v1 consumers ignore it. */
-export const CALLBACK_VERSION = 2
+ *  v2 (additive): adds `eventId` (Stripe event.id). v1 consumers ignore it.
+ *  v3 (additive): adds `subscription` (SubscriptionSummary) on subscription.* events, `nextPaymentAttempt`
+ *  on subscription.payment_failed, and the `subscription.updated` event. Consumers ignore unknown events
+ *  and fields; `subscription.activated` now reports `trialing` when the subscription starts with a trial. */
+export const CALLBACK_VERSION = 3
 
 // ─── Store (JSON file) ──────────────────────────────────────────────
 

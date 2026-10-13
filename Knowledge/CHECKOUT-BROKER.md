@@ -85,11 +85,19 @@ De ce implicitul e restrictiv: pe contul Fabulosos, Stripe avea pornite 10 metod
 - Brokerul rezolvă `customerId` (stocat la activare din `checkout.session.completed`) → `billingPortal.sessions.create`.
 - **Acțiune user (o dată per firmă):** activează Customer Portal în Stripe Dashboard (Settings → Billing → Customer portal) pe contul firmei, altfel Stripe întoarce „No configuration provided".
 
+### Starea abonamentului — `POST /api/subscription`  (consumer → broker, contract v3, 2026-10-13)
+Unde e abonamentul acum: sfârșitul perioadei plătite (= data următoarei plăți cât se reînnoiește), o oprire programată,
+sfârșitul probei, prețul pe perioadă. Același rezumat vine pe fiecare callback `subscription.*`; ruta îl dă la cerere —
+pentru abonamente pornite înainte de v3 (fără perioadă stocată la consumator) sau ca să reîmprospăteze o copie veche.
+**Headers:** `X-Project-Key`. **Body:** `{ "subscriptionId": "sub_..." | "sessionId": "cs_..." }`
+→ `200 { subscriptionId, subscription: SubscriptionSummary }` | `401` cheie greșită / abonamentul altui proiect | `404` necunoscut / neactivat / fără chei | `429` | `502` Stripe necitibil.
+- Publică în `middleware.ts` (autentificată prin X-Project-Key, ca `/api/checkout`). **Pe prod (nginx basic-auth):** aceeași excepție ca pentru `/api/portal`.
+
 ## 2) POST /api/stripe/webhook/[companySlug]  (Stripe → broker)
 Webhook-ul FIECĂREI firme din Stripe pointează aici cu **companySlug**-ul ei (ex. `/api/stripe/webhook/techbiz`).
 Brokerul verifică semnătura pe **raw body** cu webhook-secret-ul firmei (încearcă test apoi live).
-Evenimente: `checkout.session.completed` (payment paid → `payment.succeeded`; subscription → `subscription.activated`), `checkout.session.expired`, `payment_intent.payment_failed`, `invoice.paid` (reînnoire → `subscription.renewed`, prima factură de creare e ignorată), `invoice.payment_failed` (→ `subscription.payment_failed`), `customer.subscription.deleted` (→ `subscription.canceled`).
-**Pt abonamente, adaugă în Stripe (pe webhook-ul firmei) și:** `invoice.paid`, `invoice.payment_failed`, `customer.subscription.deleted` (pe lângă `checkout.session.completed`).
+Evenimente: `checkout.session.completed` (payment paid → `payment.succeeded`; subscription → `subscription.activated`), `checkout.session.expired`, `payment_intent.payment_failed`, `invoice.paid` (reînnoire → `subscription.renewed`, prima factură de creare e ignorată), `invoice.payment_failed` (→ `subscription.payment_failed`), `customer.subscription.deleted` (→ `subscription.canceled`), **v3:** `customer.subscription.updated` (→ `subscription.updated`: oprire programată/anulată din portal, perioadă nouă, sfârșitul probei).
+**Pt abonamente, adaugă în Stripe (pe webhook-ul firmei) și:** `invoice.paid`, `invoice.payment_failed`, `customer.subscription.deleted` (pe lângă `checkout.session.completed`), **iar pentru v3 și `customer.subscription.updated`** (fără el, consumatorul află de o oprire programată doar citind `POST /api/subscription`).
 Idempotent (Stripe livrează de 2×). Pe eșec de callback → **500** ca Stripe să reîncerce (durable retry).
 
 ## 3) POST <callbackUrl>  (broker → consumer)  ⚠️ orice app consumator implementează ASTA (AVE prima)
@@ -112,6 +120,28 @@ Idempotent (Stripe livrează de 2×). Pe eșec de callback → **500** ca Stripe
   "subscriptionStatus": "active" | "past_due" | "canceled" | null
 }
 ```
+**Contract v3 (2026-10-13, aditiv — câmpuri și un eveniment nou; consumatorii vechi le ignoră):**
+```jsonc
+{
+  "v": 3,
+  "event": "... | subscription.updated",           // nou: oprire programată/anulată, perioadă nouă, sfârșitul probei
+  "subscription": {                                // pe orice subscription.* (null dacă Stripe n-a putut fi citit)
+    "status": "trialing" | "active" | "past_due" | "canceled" | "...",
+    "currentPeriodEnd": "2026-11-13T10:00:00.000Z", // sfârșitul perioadei plătite = următoarea plată cât se reînnoiește
+    "cancelAtPeriodEnd": false,                    // oprit: nu se mai reînnoiește, accesul ține până la cancelAt
+    "cancelAt": null,
+    "trialEnd": null,
+    "endedAt": null,
+    "recurringAmount": 3486,                       // UNITĂȚI MINORE, prețul de listă pe perioadă (suma liniilor × cantitate)
+    "currency": "ron",
+    "interval": "month"
+  },
+  "nextPaymentAttempt": "2026-10-16T10:00:00.000Z" // doar pe subscription.payment_failed; null = Stripe nu mai reîncearcă
+}
+```
+- Perioada se citește din abonament sau din liniile lui (de la API 2025-03-31 Stripe a mutat-o pe linii) — `admin/src/lib/subscription-summary.ts`, verificat pe ambele forme (`npx tsx scripts/subscription-summary.check.ts`).
+- `subscription.activated` raportează acum `trialing` când abonamentul pornește cu probă (înainte: mereu `active`).
+
 **Consumatorul TREBUIE (la fel pentru oricine, AVE inclus):**
 1. Recalculează `hex(hmacSHA256(rawBody, STRIPE_BROKER_CALLBACK_SECRET))` și compară cu `X-Broker-Signature` (timing-safe). Respinge dacă nu se potrivește.
 2. **Dedupe pe `sessionId`** — la duplicate strict-concurente brokerul poate trimite callback-ul de 2× (lost-update pe file-store). Procesează o singură dată per sessionId.

@@ -3,11 +3,12 @@ import { NextRequest, NextResponse } from 'next/server'
 /**
  * Public Checkout Broker endpoints — reachable from anywhere, they carry their own auth:
  *   /api/checkout              → authenticated by X-Project-Key
+ *   /api/subscription          → authenticated by X-Project-Key (read-only, own project's subscriptions)
  *   /api/stripe/webhook/<slug> → authenticated by the per-company Stripe webhook signature
  * Everything else is the admin surface (handles Stripe secret keys) and stays gated.
  */
 function isPublicBrokerPath(pathname: string): boolean {
-  return pathname === '/api/checkout' || pathname.startsWith('/api/stripe/webhook/')
+  return pathname === '/api/checkout' || pathname === '/api/subscription' || pathname.startsWith('/api/stripe/webhook/')
 }
 
 /**
