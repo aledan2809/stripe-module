@@ -1,18 +1,25 @@
 #!/usr/bin/env node
 /**
- * Adaugă evenimentul `customer.subscription.updated` pe webhook-ul Stripe al firmei care încasează pentru un proiect
- * (implicit tutor → firma din project-mappings.json, de ex. class-rda), FĂRĂ Stripe Dashboard (13.10.2026: în Workbench,
- * meniul de editare nu apărea). Rulează pe VPS2, din folderul admin/ al brokerului, cu cheia pe care brokerul o are deja.
+ * Adaugă pe webhook-ul Stripe al firmei care încasează pentru un proiect (implicit tutor → firma din project-mappings.json,
+ * de ex. class-rda) evenimentele pe care brokerul le tratează și care lipsesc, FĂRĂ Stripe Dashboard (13.10.2026: în
+ * Workbench, meniul de editare nu apărea). Rulează pe VPS2, din folderul admin/ al brokerului, cu cheia pe care brokerul
+ * o are deja.
+ *
+ * De ce toate (13.10.2026): webhook-ul Class RDA primea doar checkout.session.completed + customer.subscription.updated.
+ * Fără invoice.paid / invoice.payment_failed / customer.subscription.deleted, consumatorul nu află de reînnoiri, de plata
+ * eșuată (pauza) sau de anulare (accesul nu se închide niciodată). Lista = ce tratează
+ * admin/src/app/api/stripe/webhook/[companySlug]/route.ts; un eveniment al unui abonament care nu e al brokerului
+ * primește 200 „no matching session”.
  *
  * Ce face, pe mediul brokerului pentru proiect (live/test):
  *   - găsește endpoint-urile Stripe cu adresa …/api/stripe/webhook/<firma>;
- *   - dacă evenimentul lipsește: îl ADAUGĂ la lista existentă (nu scoate nimic, nu schimbă versiunea API a endpoint-ului);
+ *   - ce lipsește din listă ADAUGĂ la lista existentă (nu scoate nimic, nu schimbă versiunea API a endpoint-ului);
  *   - afișează lista înainte și după. Cheile nu se afișează niciodată.
  *
  * Rulare (din orice folder de pe Mac):
  *   ssh root@72.62.155.74 'cd /var/www/stripe-broker/admin && git fetch -q origin master && git show origin/master:scripts/ops/adauga-eveniment-webhook.mjs > /root/adauga-eveniment-webhook.mjs && node /root/adauga-eveniment-webhook.mjs'
  *
- * Opțiuni: DRY_RUN=1 (doar arată), PROJECT=<slug> (implicit tutor), EVENT=<eveniment>.
+ * Opțiuni: DRY_RUN=1 (doar arată), PROJECT=<slug> (implicit tutor), EVENTS=<e1,e2,…> (implicit toate cele de mai jos).
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -21,7 +28,20 @@ import { createRequire } from 'node:module'
 import { execSync } from 'node:child_process'
 
 const PROJECT = process.env.PROJECT || 'tutor'
-const EVENT = process.env.EVENT || 'customer.subscription.updated'
+// Every event the broker's webhook handles (route.ts), in its order.
+const HANDLED = [
+  'checkout.session.completed',
+  'checkout.session.expired',
+  'payment_intent.payment_failed',
+  'invoice.paid',
+  'invoice.payment_failed',
+  'customer.subscription.deleted',
+  'customer.subscription.updated',
+]
+const EVENTS = (process.env.EVENTS || process.env.EVENT || HANDLED.join(','))
+  .split(',')
+  .map((e) => e.trim())
+  .filter(Boolean)
 const DRY_RUN = process.env.DRY_RUN === '1'
 // The broker's own Stripe SDK, from the admin/ folder we run in (the script itself lives elsewhere).
 const require = createRequire(path.join(process.cwd(), 'package.json'))
@@ -111,20 +131,22 @@ for (const e of ours) {
   const before = e.enabled_events || []
   console.log(`\n  webhook ${e.id}: ${e.url} (${e.status}, API ${e.api_version || 'implicit'})`)
   console.log(`    evenimente înainte (${before.length}): ${before.join(', ')}`)
-  if (before.includes('*') || before.includes(EVENT)) {
-    console.log(`    ✓ ${EVENT} e deja primit — nimic de schimbat`)
+  const missing = before.includes('*') ? [] : EVENTS.filter((x) => !before.includes(x))
+  if (missing.length === 0) {
+    console.log(`    ✓ toate evenimentele sunt deja primite — nimic de schimbat`)
     continue
   }
   if (DRY_RUN) {
-    console.log(`    (DRY_RUN) aș adăuga ${EVENT}`)
+    console.log(`    (DRY_RUN) aș adăuga (${missing.length}): ${missing.join(', ')}`)
     continue
   }
   // Only enabled_events: the endpoint keeps its URL, secret, status and API version.
-  const after = await stripe.webhookEndpoints.update(e.id, { enabled_events: [...before, EVENT] })
+  const after = await stripe.webhookEndpoints.update(e.id, { enabled_events: [...before, ...missing] })
   const lost = before.filter((x) => !after.enabled_events.includes(x))
   console.log(`    evenimente după (${after.enabled_events.length}): ${after.enabled_events.join(', ')}`)
-  if (!after.enabled_events.includes(EVENT) || lost.length) fail(`ceva nu e cum trebuie (lipsă: ${lost.join(', ') || EVENT})`)
-  console.log(`    ✓ adăugat ${EVENT}`)
+  const absent = missing.filter((x) => !after.enabled_events.includes(x))
+  if (absent.length || lost.length) fail(`ceva nu e cum trebuie (lipsă: ${[...lost, ...absent].join(', ')})`)
+  console.log(`    ✓ adăugat (${missing.length}): ${missing.join(', ')}`)
   changed++
 }
 console.log(`\nGATA. ${DRY_RUN ? 'DRY_RUN: nimic schimbat.' : changed ? `${changed} webhook actualizat.` : 'Nimic de schimbat.'}`)
