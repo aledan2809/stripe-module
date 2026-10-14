@@ -5,7 +5,7 @@
 
 ---
 
-## [ ] 📅 Contract callback v3 — perioada abonamentului (cerere Alex 13.10, pentru Tutor: „evidența lunii după plată") — LIVE 13.10 (rămâne doar evenimentul în Stripe Dashboard)
+## [x] 📅 Contract callback v3 — perioada abonamentului (cerere Alex 13.10, pentru Tutor: „evidența lunii după plată") — LIVE 13.10, webhook Class RDA complet 14.10
 
 Commit pe `master` (13.10). Verificat local: broker (build de producție) + Tutor QA, evenimente Stripe semnate cu secretul
 webhook-ului → callback-uri v3 HMAC → Tutor ține perioada: 12/12 (vezi `Reports/DIRECT-CHANGES-2026-10.md`).
@@ -17,7 +17,7 @@ webhook-ului → callback-uri v3 HMAC → Tutor ține perioada: 12/12 (vezi `Rep
   cu calea schimbată în `/etc/nginx/sites-available/stripe-knowbest`, `nginx -t` OK, reload; acum răspunde aplicația (copie a
   config-ului vechi: `/root/backups/nginx-stripe-knowbest-2026-10-13-1218`). systemd a cerut `daemon-reload` (unitatea nginx
   schimbată pe disc, dinainte — nu de livrare).
-- [ ] 🔴 **Webhook-ul Class RDA (live, `we_1Tm7UVACcgXPoGeTFTsMPvZW`) primea doar `checkout.session.completed` +
+- [x] **REZOLVAT 14.10** (Alex a bifat manual cele 5; citit cu scriptul: 7/7). **Webhook-ul Class RDA (live, `we_1Tm7UVACcgXPoGeTFTsMPvZW`) primea doar `checkout.session.completed` +
   `customer.subscription.updated`** (citit 13.10 cu scriptul de mai jos). Lipsesc `invoice.paid`, `invoice.payment_failed`,
   `customer.subscription.deleted` (+ `checkout.session.expired`, `payment_intent.payment_failed`): consumatorii nu află de
   reînnoiri, plăți eșuate, anulări. Scriptul adaugă acum implicit TOATE evenimentele tratate de webhook (testat pe un Stripe
